@@ -24,7 +24,13 @@ impl Rotor4 {
 
     /// Makes a rotor that rotates in the plane of `from` and `to` by the twice angle between them.
     pub fn between<V: Vec4>(from: V, to: V) -> Self {
-        todo!()
+        let from = from.normalized();
+        let to = to.normalized();
+        Self {
+            c: from.dot(to),
+            bivec: from.wedge(to),
+            xyzw: 0.0,
+        }
     }
 
     /// Makes a rotor that rotates in the plane of `bivec` by `angle` radians.
@@ -151,6 +157,7 @@ pub struct Bivec4 {
     pub xz: f32,
     pub xw: f32,
     pub yz: f32,
+    /// Note wy is flipped from what you might expected, this makes the multiplication tables for rotors nicer.
     pub wy: f32,
     pub zw: f32,
 }
@@ -427,16 +434,42 @@ impl Mul<ScalarPlusQuadvec4> for Bivec4 {
     }
 }
 
+const EPSILON: f32 = 1e-3;
 fn approx_equal(a: f32, b: f32) -> bool {
-    const EPSILON: f32 = 1.0e-3;
-    (a - b).abs() < EPSILON
+    crate::util::approx_equal(a, b, EPSILON)
 }
 
 #[cfg(test)]
 mod test {
     use std::f32::consts::PI;
 
+    use super::test_util::*;
     use super::*;
+
+    #[test]
+    fn test_rotor_between() {
+        let from = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
+        let to = glam::Vec4::new(4.0, 3.0, 2.0, 1.0);
+        let mag = 30.0;
+        let expected = Rotor4 {
+            c: 2.0 / 3.0,
+            bivec: Bivec4 {
+                xy: -5.0,
+                xz: -10.0,
+                xw: -15.0,
+                yz: -5.0,
+                wy: 10.0,
+                zw: -5.0,
+            }
+            .scaled(1.0 / mag),
+            xyzw: 0.0,
+        };
+        dbg!(expected);
+
+        let got = dbg!(Rotor4::between(from, to));
+
+        assert!(rotor_approx_equal(got, expected));
+    }
 
     #[test]
     fn test_rotor_log_simple_scaled() {
@@ -1026,14 +1059,19 @@ mod test {
         assert!(bivec_approx_equal(result1, expected));
         assert!(bivec_approx_equal(result2, expected));
     }
+}
 
-    fn rotor_approx_equal(a: Rotor4, b: Rotor4) -> bool {
+#[cfg(test)]
+pub(crate) mod test_util {
+    use super::*;
+
+    pub fn rotor_approx_equal(a: Rotor4, b: Rotor4) -> bool {
         approx_equal(a.c, b.c)
             && bivec_approx_equal(a.bivec, b.bivec)
             && approx_equal(a.xyzw, b.xyzw)
     }
 
-    fn rotor_log_approx_equal(a: RotorLog4, b: RotorLog4) -> bool {
+    pub fn rotor_log_approx_equal(a: RotorLog4, b: RotorLog4) -> bool {
         match (a, b) {
             (
                 RotorLog4::Simple {
@@ -1068,7 +1106,7 @@ mod test {
         }
     }
 
-    fn bivec_approx_equal(a: Bivec4, b: Bivec4) -> bool {
+    pub fn bivec_approx_equal(a: Bivec4, b: Bivec4) -> bool {
         approx_equal(a.xy, b.xy)
             && approx_equal(a.xz, b.xz)
             && approx_equal(a.xw, b.xw)
@@ -1077,11 +1115,11 @@ mod test {
             && approx_equal(a.zw, b.zw)
     }
 
-    fn simple_bivec_approx_equal(a: SimpleBivec4, b: SimpleBivec4) -> bool {
+    pub fn simple_bivec_approx_equal(a: SimpleBivec4, b: SimpleBivec4) -> bool {
         bivec_approx_equal(a.bivec, b.bivec)
     }
 
-    fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
+    pub fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
         approx_equal(a.c, b.c) && approx_equal(a.xyzw, b.xyzw)
     }
 }

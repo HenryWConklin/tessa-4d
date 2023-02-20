@@ -2,6 +2,8 @@
 //!
 //! [Vec4] and [Mat4] allow you to swap in your favorite linear algebra library.
 
+use super::rotor4::Bivec4;
+
 pub trait Transform<T> {
     type Transformed;
 
@@ -43,13 +45,38 @@ pub trait InterpolateWith {
 }
 
 /// Read-only 4-element vector.
-pub trait Vec4 {
+pub trait Vec4: Copy {
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self;
 
-    fn x(&self) -> f32;
-    fn y(&self) -> f32;
-    fn z(&self) -> f32;
-    fn w(&self) -> f32;
+    fn x(self) -> f32;
+    fn y(self) -> f32;
+    fn z(self) -> f32;
+    fn w(self) -> f32;
+
+    fn dot(self, other: Self) -> f32 {
+        self.x() * other.x() + self.y() * other.y() + self.z() * other.z() + self.w() * other.w()
+    }
+
+    fn wedge(self, other: Self) -> Bivec4 {
+        Bivec4 {
+            xy: self.x() * other.y() - self.y() * other.x(),
+            xz: self.x() * other.z() - self.z() * other.x(),
+            xw: self.x() * other.w() - self.w() * other.x(),
+            yz: self.y() * other.z() - self.z() * other.y(),
+            wy: self.w() * other.y() - self.y() * other.w(),
+            zw: self.z() * other.w() - self.w() * other.z(),
+        }
+    }
+
+    fn normalized(self) -> Self {
+        let magnitude = self.dot(self).sqrt();
+        Self::new(
+            self.x() / magnitude,
+            self.y() / magnitude,
+            self.z() / magnitude,
+            self.w() / magnitude,
+        )
+    }
 }
 
 /// Read-only 4x4 matrix.
@@ -57,5 +84,44 @@ pub trait Mat4 {
     /// Identity matrix, 1s along the diagonal and 0s elsewhere.
     const IDENTITY: Self;
     /// Construct a 4x4 matrix from an array, takes input in column-major order.
-    fn from_array(arr: &[[f32; 4]; 4]) -> Self;
+    fn from_array(arr: [[f32; 4]; 4]) -> Self;
+}
+
+#[cfg(test)]
+mod test {
+    use crate::transform::rotor4::{Bivec4, test_util::bivec_approx_equal};
+
+    const EPSILON: f32 = 1e-3;
+    fn approx_equal(a: f32, b: f32) -> bool {
+        crate::util::approx_equal(a, b, EPSILON)
+    }
+    #[test]
+    fn test_vec4_dot() {
+        let a = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
+        let b = glam::Vec4::new(5.0, 6.0, 7.0, 8.0);
+        let expected = 70.0;
+        dbg!(expected);
+
+        let got = dbg!(<glam::Vec4 as super::Vec4>::dot(a, b));
+
+        assert!(approx_equal(got, expected))
+    }
+    #[test]
+    fn test_vec4_wedge() {
+        let a = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
+        let b = glam::Vec4::new(5.0, 6.0, 7.0, 8.0);
+        let expected = Bivec4 {
+            xy: -4.0,
+            xz: -8.0,
+            xw: -12.0,
+            yz: -4.0,
+            wy: 8.0,
+            zw: -4.0,
+        };
+        dbg!(expected);
+
+        let got = dbg!(<glam::Vec4 as super::Vec4>::wedge(a, b));
+
+        assert!(bivec_approx_equal(got, expected))
+    }
 }
