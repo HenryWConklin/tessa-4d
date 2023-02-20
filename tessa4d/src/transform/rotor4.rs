@@ -5,9 +5,7 @@ use std::{
     ops::{Add, Mul, Neg, Sub},
 };
 
-use glam::{Mat4, Vec4};
-
-use super::traits::{Compose, Inverse, Transform};
+use super::traits::{Compose, InterpolateWith, Inverse, Mat4, Transform, Vec4};
 
 /// Represents rotations in four dimensions. Immutable and no direct constructor because the constraints are tricky.
 #[derive(Clone, Copy, Debug)]
@@ -15,21 +13,6 @@ pub struct Rotor4 {
     c: f32,
     bivec: Bivec4,
     xyzw: f32,
-}
-
-/// Result of [Rotor4::log()], all bivectors are normalized.
-pub enum RotorLog {
-    /// A simple rotation in the plane of a bivector, R = exp(angle * bivec)
-    Simple { bivec: SimpleBivec4, angle: f32 },
-    /// A double rotation, two independent rotations at the same time.
-    /// R = exp(angle1 * bivec1 + angle2 * bivec2) = exp(angle1 * bivec1) * exp(angle2 * bivec2)
-    /// Also, bivec1 is orthogonal to bivec2
-    DoubleRotation {
-        bivec1: SimpleBivec4,
-        angle1: f32,
-        bivec2: SimpleBivec4,
-        angle2: f32,
-    },
 }
 
 impl Rotor4 {
@@ -40,7 +23,7 @@ impl Rotor4 {
     };
 
     /// Makes a rotor that rotates in the plane of `from` and `to` by the twice angle between them.
-    pub fn between(from: Vec4, to: Vec4) -> Self {
+    pub fn between<V: Vec4>(from: V, to: V) -> Self {
         todo!()
     }
 
@@ -50,23 +33,18 @@ impl Rotor4 {
     }
 
     /// Inverse of a bivector exponential. Returned in "polar" coordinates for efficiency, bivectors will be normalized.
-    pub fn log(&self) -> RotorLog {
+    pub fn log(&self) -> RotorLog4 {
         todo!()
     }
 
     /// Computes R^exponent as exp(exponent * log(R)).
     pub fn pow(&self, exponent: f32) -> Rotor4 {
-        match self.log() {
-            RotorLog::Simple { bivec, angle } => bivec.normalized().scaled(angle).exp(),
-            RotorLog::DoubleRotation {
-                bivec1,
-                angle1,
-                bivec2,
-                angle2,
-            } => {
-                todo!()
-            }
-        }
+        self.log().scaled(exponent).exp()
+    }
+
+    /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
+    pub fn into_mat4<M: Mat4>(&self) -> M {
+        todo!()
     }
 
     /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
@@ -75,16 +53,9 @@ impl Rotor4 {
     }
 }
 
-impl From<Rotor4> for Mat4 {
-    fn from(_: Rotor4) -> Self {
-        // Convert Rotor into a rotation matrix
-        todo!()
-    }
-}
-
-impl Transform<Vec4> for Rotor4 {
-    type Transformed = Vec4;
-    fn transform(&self, operand: &Vec4) -> Self::Transformed {
+impl<V: Vec4> Transform<V> for Rotor4 {
+    type Transformed = V;
+    fn transform(&self, operand: &V) -> Self::Transformed {
         todo!()
     }
 }
@@ -106,6 +77,73 @@ impl Inverse for Rotor4 {
         }
     }
 }
+
+impl InterpolateWith for Rotor4 {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
+        let inner = self.inverse().compose(other).pow(fraction);
+        self.compose(&inner)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+/// Result of [Rotor4::log()], all bivectors are normalized.
+pub enum RotorLog4 {
+    /// A simple rotation in the plane of a bivector, R = exp(angle * bivec)
+    Simple { bivec: SimpleBivec4, angle: f32 },
+    /// A double rotation, two independent rotations at the same time.
+    /// R = exp(angle1 * bivec1 + angle2 * bivec2) = exp(angle1 * bivec1) * exp(angle2 * bivec2)
+    /// Also, bivec1 is orthogonal to bivec2
+    DoubleRotation {
+        bivec1: SimpleBivec4,
+        angle1: f32,
+        bivec2: SimpleBivec4,
+        angle2: f32,
+    },
+}
+
+impl RotorLog4 {
+    pub fn exp(&self) -> Rotor4 {
+        match self {
+            Self::Simple { bivec, angle } => bivec.scaled(*angle).exp(),
+            Self::DoubleRotation {
+                bivec1,
+                angle1,
+                bivec2,
+                angle2,
+            } => {
+                let (sin_angle1, cos_angle1) = angle1.sin_cos();
+                let (sin_angle2, cos_angle2) = angle2.sin_cos();
+                Rotor4 {
+                    c: cos_angle1 * cos_angle2,
+                    bivec: bivec1.scaled(sin_angle1 * cos_angle2)
+                        + bivec2.scaled(cos_angle1 * sin_angle2),
+                    xyzw: sin_angle1 * sin_angle2,
+                }
+            }
+        }
+    }
+
+    pub fn scaled(&self, scale: f32) -> Self {
+        match self {
+            Self::Simple { bivec, angle } => Self::Simple {
+                bivec: *bivec,
+                angle: angle * scale,
+            },
+            Self::DoubleRotation {
+                bivec1,
+                angle1,
+                bivec2,
+                angle2,
+            } => Self::DoubleRotation {
+                bivec1: *bivec1,
+                angle1: scale * angle1,
+                bivec2: *bivec2,
+                angle2: scale * angle2,
+            },
+        }
+    }
+}
+
 /// 4D bivector with components for each of the six basis planes in 4D.
 #[derive(Clone, Copy, Debug)]
 pub struct Bivec4 {
@@ -293,6 +331,15 @@ impl From<&SimpleBivec4> for Bivec4 {
     }
 }
 
+/// Addition for *simple* bivectors, the sum of simple bivectors (in 4D)
+/// is not necessarily simple so this returns a [Bivec4].
+impl Add for SimpleBivec4 {
+    type Output = Bivec4;
+    fn add(self, rhs: Self) -> Self::Output {
+        self.bivec + rhs.bivec
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 /// A scalar added to a 4D quadvector, returned by several operations on [Rotor4] and [Bivec4].
 pub struct ScalarPlusQuadvec4 {
@@ -392,7 +439,152 @@ mod test {
     use super::*;
 
     #[test]
-    fn bivec_neg() {
+    fn test_rotor_log_simple_scaled() {
+        let val = RotorLog4::Simple {
+            angle: PI / 4.0,
+            bivec: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+        };
+        let expected = RotorLog4::Simple {
+            angle: PI / 2.0,
+            bivec: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+        };
+        dbg!(expected);
+
+        let got = dbg!(val.scaled(2.0));
+
+        assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_double_scaled() {
+        let val = RotorLog4::DoubleRotation {
+            angle1: PI / 4.0,
+            bivec1: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+            angle2: PI / 2.0,
+            bivec2: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        zw: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+        };
+        let expected = RotorLog4::DoubleRotation {
+            angle1: PI / 2.0,
+            bivec1: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+            angle2: PI,
+            bivec2: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        zw: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+        };
+        dbg!(expected);
+
+        let got = dbg!(val.scaled(2.0));
+
+        assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_simple_exp() {
+        let angle = PI / 3.0;
+        let value = RotorLog4::Simple {
+            angle,
+            bivec: {
+                SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            },
+        };
+        let expected = Rotor4 {
+            c: angle.cos(),
+            bivec: Bivec4 {
+                xy: angle.sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        dbg!(expected);
+
+        let got = dbg!(value.exp());
+
+        assert!(rotor_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_double_exp() {
+        let angle1 = PI / 3.0;
+        let angle2 = PI / 6.0;
+        let value = RotorLog4::DoubleRotation {
+            bivec1: SimpleBivec4 {
+                bivec: Bivec4 {
+                    xy: 1.0,
+                    ..Bivec4::ZERO
+                },
+            },
+            angle1,
+            bivec2: SimpleBivec4 {
+                bivec: Bivec4 {
+                    zw: 1.0,
+                    ..Bivec4::ZERO
+                },
+            },
+            angle2,
+        };
+        let expected = Rotor4 {
+            c: angle1.cos() * angle2.cos(),
+            bivec: Bivec4 {
+                xy: angle1.sin() * angle2.cos(),
+                zw: angle1.cos() * angle2.sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: angle1.sin() * angle2.sin(),
+        };
+        dbg!(expected);
+
+        let got = dbg!(value.exp());
+
+        assert!(rotor_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_bivec_neg() {
         let val = Bivec4 {
             xy: 1.0,
             xz: 2.0,
@@ -417,7 +609,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_add() {
+    fn test_bivec_add() {
         let a = Bivec4 {
             xy: 1.0,
             xz: 2.0,
@@ -450,7 +642,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_sub() {
+    fn test_bivec_sub() {
         let a = Bivec4 {
             xy: 1.0,
             xz: 2.0,
@@ -483,7 +675,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_scaled() {
+    fn test_bivec_scaled() {
         let val = Bivec4 {
             xy: 1.0,
             ..Bivec4::ZERO
@@ -500,7 +692,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_square() {
+    fn test_bivec_square() {
         let val = Bivec4 {
             xy: 1.0,
             xz: 2.0,
@@ -520,7 +712,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_normalized() {
+    fn test_simple_bivec_normalized() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
                 xy: 1.0,
@@ -543,7 +735,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_scaled() {
+    fn test_simple_bivec_scaled() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
                 xy: 1.0,
@@ -564,7 +756,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_square() {
+    fn test_simple_bivec_square() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
                 xy: 1.0,
@@ -582,7 +774,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_magnitude() {
+    fn test_simple_bivec_magnitude() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
                 xy: 1.0,
@@ -600,7 +792,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_exp() {
+    fn test_simple_bivec_exp() {
         let angle = PI / 3.0;
         let val = SimpleBivec4 {
             bivec: Bivec4 {
@@ -626,7 +818,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_try_from_bivec() {
+    fn test_simple_bivec_try_from_bivec() {
         let val = Bivec4 {
             xy: 1.0,
             ..Bivec4::ZERO
@@ -639,7 +831,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_try_from_non_simple_bivec_returns_err() {
+    fn test_simple_bivec_try_from_non_simple_bivec_returns_err() {
         let val = Bivec4 {
             xy: 1.0,
             zw: 1.0,
@@ -652,7 +844,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_try_from_non_simple_bivec_ref_returns_err() {
+    fn test_simple_bivec_try_from_non_simple_bivec_ref_returns_err() {
         let val = Bivec4 {
             xy: 1.0,
             zw: 1.0,
@@ -665,7 +857,7 @@ mod test {
     }
 
     #[test]
-    fn simple_bivec_try_from_bivec_ref() {
+    fn test_simple_bivec_try_from_bivec_ref() {
         let val = Bivec4 {
             xy: 1.0,
             ..Bivec4::ZERO
@@ -679,7 +871,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_from_simple_bivec() {
+    fn test_bivec_from_simple_bivec() {
         let val = SimpleBivec4 {
             bivec: Bivec4::ZERO,
         };
@@ -691,7 +883,7 @@ mod test {
     }
 
     #[test]
-    fn bivec_from_simple_bivec_ref() {
+    fn test_bivec_from_simple_bivec_ref() {
         let val = SimpleBivec4 {
             bivec: Bivec4::ZERO,
         };
@@ -703,7 +895,32 @@ mod test {
     }
 
     #[test]
-    fn scalar_plus_quadvec_squares() {
+    fn test_simple_bivec_add() {
+        let a = SimpleBivec4 {
+            bivec: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            },
+        };
+        let b = SimpleBivec4 {
+            bivec: Bivec4 {
+                zw: 1.0,
+                ..Bivec4::ZERO
+            },
+        };
+        let expected = Bivec4 {
+            xy: 1.0,
+            zw: 1.0,
+            ..Bivec4::ZERO
+        };
+
+        let got = dbg!(a + b);
+
+        assert!(bivec_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_scalar_plus_quadvec_squares() {
         let val = ScalarPlusQuadvec4 { c: 1.0, xyzw: 2.0 };
         dbg!(val);
 
@@ -717,7 +934,7 @@ mod test {
         assert!(scalar_plus_quadvec_approx_equal(val, root));
     }
 
-    fn scalar_plus_quadvec_alternalte_sqrts() {
+    fn test_scalar_plus_quadvec_alternalte_sqrts() {
         let val = ScalarPlusQuadvec4 { c: 3.0, xyzw: 2.0 };
         dbg!(val);
 
@@ -747,7 +964,7 @@ mod test {
     }
 
     #[test]
-    fn scalar_plus_quadvec_inverse() {
+    fn test_scalar_plus_quadvec_inverse() {
         let val = ScalarPlusQuadvec4 { c: 2.0, xyzw: 1.0 };
         dbg!(val);
 
@@ -768,7 +985,7 @@ mod test {
     }
 
     #[test]
-    fn scalar_plus_quadvec_mul() {
+    fn test_scalar_plus_quadvec_mul() {
         let lhs = ScalarPlusQuadvec4 { c: 1.0, xyzw: 2.0 };
         let rhs = ScalarPlusQuadvec4 { c: 3.0, xyzw: 4.0 };
         let expected = ScalarPlusQuadvec4 {
@@ -783,7 +1000,7 @@ mod test {
     }
 
     #[test]
-    fn scalar_plus_quadvec_mul_bivec() {
+    fn test_scalar_plus_quadvec_mul_bivec() {
         let scalar_quadvec = ScalarPlusQuadvec4 { c: 1.0, xyzw: 2.0 };
         let bivec = Bivec4 {
             xy: 1.0,
@@ -814,6 +1031,41 @@ mod test {
         approx_equal(a.c, b.c)
             && bivec_approx_equal(a.bivec, b.bivec)
             && approx_equal(a.xyzw, b.xyzw)
+    }
+
+    fn rotor_log_approx_equal(a: RotorLog4, b: RotorLog4) -> bool {
+        match (a, b) {
+            (
+                RotorLog4::Simple {
+                    bivec: a_bivec,
+                    angle: a_angle,
+                },
+                RotorLog4::Simple {
+                    bivec: b_bivec,
+                    angle: b_angle,
+                },
+            ) => approx_equal(a_angle, b_angle) && simple_bivec_approx_equal(a_bivec, b_bivec),
+            (
+                RotorLog4::DoubleRotation {
+                    bivec1: a_bivec1,
+                    angle1: a_angle1,
+                    bivec2: a_bivec2,
+                    angle2: a_angle2,
+                },
+                RotorLog4::DoubleRotation {
+                    bivec1: b_bivec1,
+                    angle1: b_angle1,
+                    bivec2: b_bivec2,
+                    angle2: b_angle2,
+                },
+            ) => {
+                approx_equal(a_angle1, b_angle1)
+                    && approx_equal(a_angle2, b_angle2)
+                    && simple_bivec_approx_equal(a_bivec1, b_bivec1)
+                    && simple_bivec_approx_equal(a_bivec2, b_bivec2)
+            }
+            _ => false,
+        }
     }
 
     fn bivec_approx_equal(a: Bivec4, b: Bivec4) -> bool {
