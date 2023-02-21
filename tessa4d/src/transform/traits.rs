@@ -89,27 +89,55 @@ pub trait Mat4 {
 
 #[cfg(test)]
 mod test {
-    use crate::transform::rotor4::{Bivec4, test_util::bivec_approx_equal};
+    use super::*;
+    use crate::transform::rotor4::{test_util::bivec_approx_equal, Bivec4};
 
     const EPSILON: f32 = 1e-3;
     fn approx_equal(a: f32, b: f32) -> bool {
         crate::util::approx_equal(a, b, EPSILON)
     }
+
+    #[derive(Clone, Copy)]
+    struct TestVec4 {
+        x: f32,
+        y: f32,
+        z: f32,
+        w: f32,
+    }
+    impl Vec4 for TestVec4 {
+        fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
+            Self { x, y, z, w }
+        }
+
+        fn x(self) -> f32 {
+            self.x
+        }
+        fn y(self) -> f32 {
+            self.y
+        }
+        fn z(self) -> f32 {
+            self.z
+        }
+        fn w(self) -> f32 {
+            self.w
+        }
+    }
+
     #[test]
     fn test_vec4_dot() {
-        let a = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
-        let b = glam::Vec4::new(5.0, 6.0, 7.0, 8.0);
+        let a = TestVec4::new(1.0, 2.0, 3.0, 4.0);
+        let b = TestVec4::new(5.0, 6.0, 7.0, 8.0);
         let expected = 70.0;
         dbg!(expected);
 
-        let got = dbg!(<glam::Vec4 as super::Vec4>::dot(a, b));
+        let got = dbg!(a.dot(b));
 
         assert!(approx_equal(got, expected))
     }
     #[test]
     fn test_vec4_wedge() {
-        let a = glam::Vec4::new(1.0, 2.0, 3.0, 4.0);
-        let b = glam::Vec4::new(5.0, 6.0, 7.0, 8.0);
+        let a = TestVec4::new(1.0, 2.0, 3.0, 4.0);
+        let b = TestVec4::new(5.0, 6.0, 7.0, 8.0);
         let expected = Bivec4 {
             xy: -4.0,
             xz: -8.0,
@@ -120,7 +148,7 @@ mod test {
         };
         dbg!(expected);
 
-        let got = dbg!(<glam::Vec4 as super::Vec4>::wedge(a, b));
+        let got = dbg!(a.wedge(b));
 
         assert!(bivec_approx_equal(got, expected))
     }

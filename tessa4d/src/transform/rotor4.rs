@@ -1,9 +1,6 @@
 // TODO Remove after implementing
 #![allow(unused_variables, dead_code)]
-use std::{
-    f32::consts::SQRT_2,
-    ops::{Add, Mul, Neg, Sub},
-};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use super::traits::{Compose, InterpolateWith, Inverse, Mat4, Transform, Vec4};
 
@@ -197,17 +194,6 @@ impl Bivec4 {
         }
     }
 
-    /// "Normalize" this bivector into a [SimpleBivec4]. If the vector is already simple, this does not modify the bivector. Otherwise, returns a reasonably similar
-    /// simple bivector.
-    pub fn force_simple(&self) -> SimpleBivec4 {
-        match SimpleBivec4::try_from(self) {
-            Ok(simple_bivec) => simple_bivec,
-            Err(_) => {
-                todo!()
-            }
-        }
-    }
-
     /// Bivector exponential, essentially maps from a polar representation, angle * Bivector, to a Rotor that transforms by that angle.
     pub fn exp(&self) -> Rotor4 {
         let (b1, b2) = self.factor_into_simple_orthogonal();
@@ -350,70 +336,15 @@ impl Add for SimpleBivec4 {
 #[derive(Clone, Copy, Debug)]
 /// A scalar added to a 4D quadvector, returned by several operations on [Rotor4] and [Bivec4].
 pub struct ScalarPlusQuadvec4 {
-    c: f32,
-    xyzw: f32,
+    pub c: f32,
+    pub xyzw: f32,
 }
 
 impl ScalarPlusQuadvec4 {
     const ZERO: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 0.0, xyzw: 0.0 };
     const ONE: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 1.0, xyzw: 0.0 };
-
-    /// Scalar component.
-    pub fn c(&self) -> f32 {
-        self.c
-    }
-
-    /// Quadvector component.
-    pub fn xyzw(&self) -> f32 {
-        self.xyzw
-    }
-
-    /// Returns the square which is also  a [ScalarPlusQuadvec4].
-    pub fn square(&self) -> Self {
-        Self {
-            c: self.c * self.c + self.xyzw * self.xyzw,
-            xyzw: 2.0 * self.c * self.xyzw,
-        }
-    }
-
-    /// Returns one of four square roots. The others are the negation, swapping the components, and the negation of swapping the components.
-    pub fn sqrt(&self) -> Self {
-        // This is always valid if it comes from the square of a [Bivec4] or a [ScalarPlusQuadvec4], which must be maintained by the library.
-        // True because a^2 + b^2 >= 2 * a * b
-        let root_det = self.det().sqrt();
-        Self {
-            c: (self.c - root_det).sqrt() / SQRT_2,
-            xyzw: (self.c + root_det).sqrt() / SQRT_2,
-        }
-    }
-
-    /// Attempts to compute the multiplicative inverse. Returns None if it does not exist as a [ScalarPlusQuadvec4].
-    pub fn inv(&self) -> Option<Self> {
-        if approx_equal(self.c, self.xyzw) {
-            return None;
-        }
-        let det = self.det();
-        Some(Self {
-            c: self.c / det,
-            xyzw: -self.xyzw / det,
-        })
-    }
-
-    /// c^2 - xyzw^2, common value in equations, similar to a determinant so that's what I'm calling it.
-    fn det(&self) -> f32 {
-        self.c * self.c - self.xyzw * self.xyzw
-    }
 }
 
-impl Mul for ScalarPlusQuadvec4 {
-    type Output = ScalarPlusQuadvec4;
-    fn mul(self, rhs: Self) -> Self::Output {
-        Self {
-            c: self.c * rhs.c + self.xyzw * rhs.xyzw,
-            xyzw: self.c * rhs.xyzw + self.xyzw * rhs.c,
-        }
-    }
-}
 impl Mul<Bivec4> for ScalarPlusQuadvec4 {
     type Output = Bivec4;
     fn mul(self, rhs: Bivec4) -> Self::Output {
@@ -441,7 +372,7 @@ fn approx_equal(a: f32, b: f32) -> bool {
 
 #[cfg(test)]
 mod test {
-    use std::f32::consts::PI;
+    use std::f32::consts::{PI, SQRT_2};
 
     use super::test_util::*;
     use super::*;
@@ -950,86 +881,6 @@ mod test {
         let got = dbg!(a + b);
 
         assert!(bivec_approx_equal(got, expected));
-    }
-
-    #[test]
-    fn test_scalar_plus_quadvec_squares() {
-        let val = ScalarPlusQuadvec4 { c: 1.0, xyzw: 2.0 };
-        dbg!(val);
-
-        let square = dbg!(val.square());
-        let root = dbg!(square.sqrt());
-
-        assert!(scalar_plus_quadvec_approx_equal(
-            square,
-            ScalarPlusQuadvec4 { c: 5.0, xyzw: 4.0 }
-        ));
-        assert!(scalar_plus_quadvec_approx_equal(val, root));
-    }
-
-    fn test_scalar_plus_quadvec_alternalte_sqrts() {
-        let val = ScalarPlusQuadvec4 { c: 3.0, xyzw: 2.0 };
-        dbg!(val);
-
-        let square = dbg!(val.square());
-        let root1 = dbg!(square.sqrt());
-        let root1_square = dbg!(root1.square());
-        let root2_square = dbg!(ScalarPlusQuadvec4 {
-            c: -root1.c,
-            xyzw: -root1.xyzw,
-        }
-        .square());
-        let root3_square = dbg!(ScalarPlusQuadvec4 {
-            c: root1.xyzw,
-            xyzw: root1.c,
-        }
-        .square());
-        let root4_square = dbg!(ScalarPlusQuadvec4 {
-            c: -root1.xyzw,
-            xyzw: -root1.c,
-        }
-        .square());
-
-        assert!(scalar_plus_quadvec_approx_equal(root1_square, square));
-        assert!(scalar_plus_quadvec_approx_equal(root2_square, square));
-        assert!(scalar_plus_quadvec_approx_equal(root3_square, square));
-        assert!(scalar_plus_quadvec_approx_equal(root4_square, square));
-    }
-
-    #[test]
-    fn test_scalar_plus_quadvec_inverse() {
-        let val = ScalarPlusQuadvec4 { c: 2.0, xyzw: 1.0 };
-        dbg!(val);
-
-        let inv = dbg!(val.inv());
-
-        assert!(inv.is_some());
-        assert!(scalar_plus_quadvec_approx_equal(
-            inv.unwrap(),
-            ScalarPlusQuadvec4 {
-                c: 2.0 / 3.0,
-                xyzw: -1.0 / 3.0
-            }
-        ));
-        assert!(scalar_plus_quadvec_approx_equal(
-            val * inv.unwrap(),
-            ScalarPlusQuadvec4 { c: 1.0, xyzw: 0.0 }
-        ))
-    }
-
-    #[test]
-    fn test_scalar_plus_quadvec_mul() {
-        let lhs = ScalarPlusQuadvec4 { c: 1.0, xyzw: 2.0 };
-        let rhs = ScalarPlusQuadvec4 { c: 3.0, xyzw: 4.0 };
-        let expected = ScalarPlusQuadvec4 {
-            c: 11.0,
-            xyzw: 10.0,
-        };
-        dbg!(expected);
-
-        let got = dbg!(lhs * rhs);
-
-        assert!(scalar_plus_quadvec_approx_equal(got, expected))
     }
 
     #[test]
