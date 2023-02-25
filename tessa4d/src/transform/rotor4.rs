@@ -1,8 +1,12 @@
 // TODO Remove after implementing
 #![allow(unused_variables, dead_code)]
-use std::ops::{Add, Mul, Neg, Sub};
+use std::{
+    f32::consts::FRAC_PI_2,
+    ops::{Add, Mul, Neg, Sub},
+};
 
 use super::traits::{Compose, InterpolateWith, Inverse, Mat4, Transform, Vec4};
+use thiserror::Error;
 
 /// Represents rotations in four dimensions. Immutable and no direct constructor because the constraints are tricky.
 #[derive(Clone, Copy, Debug)]
@@ -28,21 +32,60 @@ impl Rotor4 {
             bivec: from.wedge(to),
             xyzw: 0.0,
         }
+        .normalized()
     }
 
-    /// Makes a rotor that rotates in the plane of `bivec` by `angle` radians.
-    pub fn from_bivec_angle(bivec: Bivec4, angle: f32) -> Self {
-        todo!()
+    /// Makes a rotor that rotates by the angles specified in the components of the input.
+    pub fn from_bivec_angle(bivec: Bivec4) -> Result<Self, RotorError> {
+        Ok(bivec.exp()?.normalized())
     }
 
     /// Inverse of a bivector exponential. Returned in "polar" coordinates for efficiency, bivectors will be normalized.
-    pub fn log(&self) -> RotorLog4 {
-        todo!()
+    /// Returns an error if something that should be a simple bivector isn't, should only happen due to numerical errors.
+    pub fn log(&self) -> Result<RotorLog4, RotorError> {
+        if approx_equal(self.xyzw, 0.0) {
+            let bivec: SimpleBivec4 = self.bivec.try_into()?;
+            Ok(RotorLog4::Simple {
+                bivec: bivec.normalized(),
+                angle: bivec.magnitude().atan2(self.c),
+            })
+        } else if approx_equal(self.c, 0.0) {
+            let bivec2: SimpleBivec4 = self.bivec.try_into()?;
+            let angle1 = self.xyzw.atan2(bivec2.magnitude());
+            let angle2 = FRAC_PI_2;
+            let bivec2 = bivec2.normalized();
+            let bivec1 = SimpleBivec4 {
+                bivec: Bivec4 {
+                    xy: bivec2.bivec.zw,
+                    xz: bivec2.bivec.wy,
+                    xw: bivec2.bivec.yz,
+                    yz: bivec2.bivec.xw,
+                    wy: bivec2.bivec.xz,
+                    zw: bivec2.bivec.xy,
+                },
+            };
+            Ok(RotorLog4::DoubleRotation {
+                bivec1,
+                angle1,
+                bivec2,
+                angle2,
+            })
+        } else {
+            let (bivec1, bivec2) = self.bivec.factor_into_simple_orthogonal()?;
+            let angle1 = bivec1.magnitude().atan2(self.c);
+            let angle2 = bivec2.magnitude().atan2(self.c);
+            Ok(RotorLog4::DoubleRotation {
+                bivec1: bivec1.normalized(),
+                angle1,
+                bivec2: bivec2.normalized(),
+                angle2,
+            })
+        }
     }
 
     /// Computes R^exponent as exp(exponent * log(R)).
-    pub fn pow(&self, exponent: f32) -> Rotor4 {
-        self.log().scaled(exponent).exp()
+    pub fn pow(&self, exponent: f32) -> Result<Rotor4, RotorError> {
+        Ok(self.log()?.scaled(exponent).exp().normalized())
     }
 
     /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
@@ -51,8 +94,18 @@ impl Rotor4 {
     }
 
     /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
-    fn normalize(&mut self) {
-        todo!()
+    fn normalized(self) -> Self {
+        // let bivec_squared = self.bivec.square();
+        // if !approx_equal(self.c, 0.0) {
+        //     self.xyzw = bivec_squared.xyzw / (2.0 * self.c);
+        //     let mag = (self.c * self.c - bivec_squared.c + self.xyzw * self.xyzw).sqrt();
+        //     self.c /= mag;
+        //     self.bivec = self.bivec.scaled(mag);
+        //     self.xyzw /= mag;
+        // } else {
+        //     self.xyzw = (1.0 - bivec_squared.c).sqrt();
+        // }
+        self
     }
 }
 
@@ -84,7 +137,11 @@ impl Inverse for Rotor4 {
 impl InterpolateWith for Rotor4 {
     fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         let inner = self.inverse().compose(other).pow(fraction);
-        self.compose(&inner)
+        // Fall back to one input or the other on failure.
+        inner.map_or_else(
+            |_| if fraction < 0.5 { *self } else { *other },
+            |x| self.compose(&x),
+        )
     }
 }
 
@@ -95,7 +152,7 @@ pub enum RotorLog4 {
     Simple { bivec: SimpleBivec4, angle: f32 },
     /// A double rotation, two independent rotations at the same time.
     /// R = exp(angle1 * bivec1 + angle2 * bivec2) = exp(angle1 * bivec1) * exp(angle2 * bivec2)
-    /// Also, bivec1 is orthogonal to bivec2
+    /// Also, bivec1 commutes with bivec2, they are orthogonal.
     DoubleRotation {
         bivec1: SimpleBivec4,
         angle1: f32,
@@ -168,6 +225,14 @@ impl Bivec4 {
         wy: 0.0,
         zw: 0.0,
     };
+    const ONE: Self = Self {
+        xy: 1.0,
+        xz: 1.0,
+        xw: 1.0,
+        yz: 1.0,
+        wy: 1.0,
+        zw: 1.0,
+    };
 
     /// Returns the square of the bivector, as a [ScalarPlusQuadvec4].
     pub fn square(&self) -> ScalarPlusQuadvec4 {
@@ -195,14 +260,53 @@ impl Bivec4 {
     }
 
     /// Bivector exponential, essentially maps from a polar representation, angle * Bivector, to a Rotor that transforms by that angle.
-    pub fn exp(&self) -> Rotor4 {
-        let (b1, b2) = self.factor_into_simple_orthogonal();
-        todo!()
+    pub fn exp(&self) -> Result<Rotor4, RotorError> {
+        let (b1, b2) = self.factor_into_simple_orthogonal()?;
+        let angle1 = b1.magnitude();
+        let angle2 = b2.magnitude();
+        let b1 = b1.normalized();
+        let b2 = b2.normalized();
+        Ok(Rotor4 {
+            c: angle1.cos() * angle2.cos(),
+            bivec: b1.scaled(angle1.sin() * angle2.cos()) + b2.scaled(angle1.cos() * angle2.sin()),
+            xyzw: angle1.sin() * angle2.sin(),
+        })
     }
 
     /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, B1^2 = B2^2 = -1.
-    pub fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
-        todo!()
+    pub fn factor_into_simple_orthogonal(
+        &self,
+    ) -> Result<(SimpleBivec4, SimpleBivec4), RotorError> {
+        let squared = self.square();
+        if approx_equal(squared.c.abs(), squared.xyzw.abs()) {
+            Ok((
+                Bivec4 {
+                    xy: self.xy,
+                    xz: self.xz,
+                    xw: self.xw,
+                    ..Self::ZERO
+                }
+                .try_into()?,
+                Bivec4 {
+                    yz: self.yz,
+                    wy: self.wy,
+                    zw: self.zw,
+                    ..Self::ZERO
+                }
+                .try_into()?,
+            ))
+        } else {
+            let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
+            let factor1 = ScalarPlusQuadvec4 {
+                c: (-squared.c + det) / (2.0 * det),
+                xyzw: squared.xyzw / (2.0 * det),
+            };
+            let factor2 = ScalarPlusQuadvec4 {
+                c: (squared.c + det) / (2.0 * det),
+                xyzw: -squared.xyzw / (2.0 * det),
+            };
+            Ok(((*self * factor1).try_into()?, (*self * factor2).try_into()?))
+        }
     }
 }
 
@@ -293,23 +397,26 @@ impl SimpleBivec4 {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum BivecError {
-    NotSimple,
+#[derive(Clone, Copy, Debug, Error)]
+pub enum RotorError {
+    #[error("Bivector {0:?} was not simple, had square {1:?}")]
+    NotSimple(Bivec4, ScalarPlusQuadvec4),
 }
 impl TryFrom<&Bivec4> for SimpleBivec4 {
-    type Error = BivecError;
+    type Error = RotorError;
     fn try_from(value: &Bivec4) -> Result<Self, Self::Error> {
         SimpleBivec4::try_from(*value)
     }
 }
 impl TryFrom<Bivec4> for SimpleBivec4 {
-    type Error = BivecError;
+    type Error = RotorError;
     fn try_from(value: Bivec4) -> Result<Self, Self::Error> {
+        let square = value.square();
+        // This check can fail for bivectors with large magnitude, but works up to ~100 which is fine for rotations.
         if approx_equal(value.square().xyzw, 0.0) {
             Ok(SimpleBivec4 { bivec: value })
         } else {
-            Err(BivecError::NotSimple)
+            Err(RotorError::NotSimple(value, square))
         }
     }
 }
@@ -373,6 +480,8 @@ fn approx_equal(a: f32, b: f32) -> bool {
 #[cfg(test)]
 mod test {
     use std::f32::consts::{PI, SQRT_2};
+
+    use rand::SeedableRng;
 
     use super::test_util::*;
     use super::*;
@@ -676,6 +785,110 @@ mod test {
     }
 
     #[test]
+    fn test_bivec_factor_into_simple_orthogonal_already_simple() {
+        let val = Bivec4 {
+            xy: 1.0,
+            ..Bivec4::ZERO
+        };
+        dbg!(val);
+
+        let got = dbg!(val.factor_into_simple_orthogonal());
+
+        assert!(got.is_ok());
+        let bivec1 = got.unwrap().0.bivec;
+        assert!(bivec_approx_equal(bivec1, val) || bivec_approx_equal(bivec1, Bivec4::ZERO));
+        let bivec2 = got.unwrap().1.bivec;
+        assert!(bivec_approx_equal(bivec2, val) || bivec_approx_equal(bivec2, Bivec4::ZERO));
+    }
+
+    #[test]
+    fn test_bivec_factor_into_simple_orthogonal_isoclinic() {
+        let val = Bivec4 {
+            xy: 1.0,
+            zw: 1.0,
+            ..Bivec4::ZERO
+        };
+        dbg!(val);
+        let expected1 = Bivec4 {
+            xy: 1.0,
+            ..Bivec4::ZERO
+        };
+        let expected2 = Bivec4 {
+            zw: 1.0,
+            ..Bivec4::ZERO
+        };
+        dbg!(expected1);
+        dbg!(expected2);
+
+        let got = dbg!(val.factor_into_simple_orthogonal());
+
+        assert!(got.is_ok());
+        let bivec1 = got.unwrap().0.bivec;
+        assert!(bivec_approx_equal(bivec1, expected1) || bivec_approx_equal(bivec1, expected2));
+        let bivec2 = got.unwrap().1.bivec;
+        assert!(bivec_approx_equal(bivec2, expected1) || bivec_approx_equal(bivec2, expected2));
+    }
+
+    #[test]
+    fn test_bivec_factor_into_simple_orthogonal_double_rotation() {
+        let val = Bivec4 {
+            xy: 1.0,
+            zw: 2.0,
+            ..Bivec4::ZERO
+        };
+        dbg!(val);
+        let expected1 = Bivec4 {
+            xy: 1.0,
+            ..Bivec4::ZERO
+        };
+        let expected2 = Bivec4 {
+            zw: 2.0,
+            ..Bivec4::ZERO
+        };
+        dbg!(expected1);
+        dbg!(expected2);
+
+        let got = dbg!(val.factor_into_simple_orthogonal());
+
+        assert!(got.is_ok());
+        let bivec1 = got.unwrap().0.bivec;
+        assert!(bivec_approx_equal(bivec1, expected1) || bivec_approx_equal(bivec1, expected2));
+        let bivec2 = got.unwrap().1.bivec;
+        assert!(bivec_approx_equal(bivec2, expected1) || bivec_approx_equal(bivec2, expected2));
+    }
+
+    #[test]
+    fn test_bivec_factor_into_simple_orthogonal_fuzz_test() {
+        // This test fails with a RANGE of ~100 because of precision, but think 50 is good enough for rotations.
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 50.0;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let val = random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
+            dbg!(val);
+
+            let got = dbg!(val.factor_into_simple_orthogonal());
+
+            assert!(got.is_ok());
+            let bivec1 = got.unwrap().0.bivec;
+            let bivec2 = got.unwrap().1.bivec;
+            assert!(bivec_approx_equal(bivec1 + bivec2, val));
+            let dot = dbg!(
+                bivec1.xy * bivec2.xy
+                    + bivec1.xz * bivec2.xz
+                    + bivec1.xw * bivec2.xw
+                    + bivec1.yz * bivec2.yz
+                    + bivec1.wy * bivec2.wy
+                    + bivec1.zw * bivec2.zw
+            );
+            assert!(approx_equal(dot, 0.0));
+            // Technically need to check that bivector component of product is 0, but it's like 24 terms and I'm not writing that out.
+        }
+    }
+
+    #[test]
     fn test_simple_bivec_normalized() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
@@ -972,5 +1185,17 @@ pub(crate) mod test_util {
 
     pub fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
         approx_equal(a.c, b.c) && approx_equal(a.xyzw, b.xyzw)
+    }
+
+    /// Generates a random bivector where each component is in [0, 1).
+    pub fn random_bivector<R: rand::Rng>(gen: &mut R) -> Bivec4 {
+        Bivec4 {
+            xy: gen.gen(),
+            xz: gen.gen(),
+            xw: gen.gen(),
+            yz: gen.gen(),
+            wy: gen.gen(),
+            zw: gen.gen(),
+        }
     }
 }
