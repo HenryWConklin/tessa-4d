@@ -1,1 +1,5 @@
 /target
+
+coverage-test-out.txt
+coverage-report.txt
+*.profdata
