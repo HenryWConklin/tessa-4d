@@ -2,13 +2,15 @@
 //!
 //! [Vec4] and [Mat4] allow you to swap in your favorite linear algebra library.
 
+use std::ops::Mul;
+
 use super::rotor4::Bivec4;
 
 pub trait Transform<T> {
     type Transformed;
 
     /// Applies this transformation to a target type. May return a different type, e.g. for projections.
-    fn transform(&self, operand: &T) -> Self::Transformed;
+    fn transform(&self, operand: T) -> Self::Transformed;
 }
 
 pub trait Compose<Other> {
@@ -44,8 +46,10 @@ pub trait InterpolateWith {
     fn interpolate_with(&self, other: &Self, fraction: f32) -> Self;
 }
 
-/// Read-only 4-element vector.
+/// Read-only 4-element vector. Allows swapping out linear algebra implementations.
 pub trait Vec4: Copy {
+    type Matrix4: Mat4<Vector4 = Self>;
+
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self;
 
     fn x(self) -> f32;
@@ -79,8 +83,9 @@ pub trait Vec4: Copy {
     }
 }
 
-/// Read-only 4x4 matrix.
-pub trait Mat4 {
+/// Read-only 4x4 matrix. Allows swapping out linear algebra implementations.
+pub trait Mat4: Mul<Self::Vector4, Output = Self::Vector4> {
+    type Vector4: Vec4;
     /// Identity matrix, 1s along the diagonal and 0s elsewhere.
     const IDENTITY: Self;
     /// Construct a 4x4 matrix from an array, takes input in column-major order.
@@ -88,23 +93,20 @@ pub trait Mat4 {
 }
 
 #[cfg(test)]
-mod test {
-    use super::*;
-    use crate::transform::rotor4::{test_util::bivec_approx_equal, Bivec4};
+pub(crate) mod test_util {
+    use std::ops::Mul;
 
-    const EPSILON: f32 = 1e-3;
-    fn approx_equal(a: f32, b: f32) -> bool {
-        crate::util::approx_equal(a, b, EPSILON)
-    }
+    use super::{Mat4, Vec4};
 
     #[derive(Clone, Copy)]
-    struct TestVec4 {
+    pub struct TestVec4 {
         x: f32,
         y: f32,
         z: f32,
         w: f32,
     }
     impl Vec4 for TestVec4 {
+        type Matrix4 = TestMat4;
         fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
             Self { x, y, z, w }
         }
@@ -121,6 +123,32 @@ mod test {
         fn w(self) -> f32 {
             self.w
         }
+    }
+    pub struct TestMat4;
+    impl Mat4 for TestMat4 {
+        type Vector4 = TestVec4;
+        const IDENTITY: Self = Self;
+        fn from_array(_: [[f32; 4]; 4]) -> Self {
+            Self
+        }
+    }
+    impl Mul<TestVec4> for TestMat4 {
+        type Output = TestVec4;
+        fn mul(self, rhs: TestVec4) -> Self::Output {
+            rhs
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::test_util::*;
+    use super::*;
+    use crate::transform::rotor4::{test_util::bivec_approx_equal, Bivec4};
+
+    const EPSILON: f32 = 1e-3;
+    fn approx_equal(a: f32, b: f32) -> bool {
+        crate::util::approx_equal(a, b, EPSILON)
     }
 
     #[test]

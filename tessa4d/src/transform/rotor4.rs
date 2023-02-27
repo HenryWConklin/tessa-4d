@@ -1,12 +1,14 @@
 // TODO Remove after implementing
 #![allow(unused_variables, dead_code)]
 use std::{
-    f32::consts::FRAC_PI_2,
+    f32::consts::{FRAC_PI_2, PI},
     ops::{Add, Mul, Neg, Sub},
 };
 
 use super::traits::{Compose, InterpolateWith, Inverse, Mat4, Transform, Vec4};
 use thiserror::Error;
+
+const EPSILON: f32 = 1e-3;
 
 /// Represents rotations in four dimensions. Immutable and no direct constructor because the constraints are tricky.
 #[derive(Clone, Copy, Debug)]
@@ -36,22 +38,55 @@ impl Rotor4 {
     }
 
     /// Makes a rotor that rotates by the angles specified in the components of the input.
-    pub fn from_bivec_angle(bivec: Bivec4) -> Result<Self, RotorError> {
-        Ok(bivec.exp()?.normalized())
+    pub fn from_bivec_angles(bivec: Bivec4) -> Result<Self, RotorError> {
+        // Rotor rotates by twice the angle, scale by half to compensate.
+        Ok(bivec.scaled(0.5).exp()?.normalized())
+    }
+
+    /// Getter for the scalar term of the rotor.
+    pub fn c(&self) -> f32 {
+        self.c
+    }
+
+    /// Getter for the bivector components of the rotor.
+    pub fn bivec(&self) -> Bivec4 {
+        self.bivec
+    }
+
+    /// Getter for the quadvector component of the rotor.
+    pub fn xyzw(&self) -> f32 {
+        self.xyzw
     }
 
     /// Inverse of a bivector exponential. Returned in "polar" coordinates for efficiency, bivectors will be normalized.
     /// Returns an error if something that should be a simple bivector isn't, should only happen due to numerical errors.
     pub fn log(&self) -> Result<RotorLog4, RotorError> {
-        if approx_equal(self.xyzw, 0.0) {
-            let bivec: SimpleBivec4 = self.bivec.try_into()?;
+        let bivec_simple = SimpleBivec4::try_from(self.bivec);
+        if approx_equal(self.xyzw, 0.0) && bivec_simple.is_ok() {
+            let bivec = bivec_simple.unwrap();
+            let abs_angle = (bivec.magnitude() / self.c.abs()).atan();
+            let angle = if self.c > 0.0 {
+                abs_angle
+            } else {
+                PI - abs_angle
+            };
             Ok(RotorLog4::Simple {
                 bivec: bivec.normalized(),
-                angle: bivec.magnitude().atan2(self.c),
+                angle,
             })
-        } else if approx_equal(self.c, 0.0) {
-            let bivec2: SimpleBivec4 = self.bivec.try_into()?;
-            let angle1 = self.xyzw.atan2(bivec2.magnitude());
+        } else if approx_equal(self.c, 0.0) && bivec_simple.is_ok() {
+            let mut bivec2 = bivec_simple.unwrap();
+            let bivec2_magnitude = bivec2.magnitude();
+            // If the bivector component is zero, have an isoclinic rotation and any simple bivector works.
+            if approx_equal(bivec2_magnitude, 0.0) {
+                bivec2 = SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: 1.0,
+                        ..Bivec4::ZERO
+                    },
+                }
+            }
+            let angle1 = self.xyzw.atan2(bivec2_magnitude);
             let angle2 = FRAC_PI_2;
             let bivec2 = bivec2.normalized();
             let bivec1 = SimpleBivec4 {
@@ -72,8 +107,37 @@ impl Rotor4 {
             })
         } else {
             let (bivec1, bivec2) = self.bivec.factor_into_simple_orthogonal()?;
-            let angle1 = bivec1.magnitude().atan2(self.c);
-            let angle2 = bivec2.magnitude().atan2(self.c);
+            // Because bivec magnitude is always positive, essentially have x and |y| which breaks atan2
+            // Need to figure out quadrant based on signs of other terms.
+            // Also, can calculate from either self.c or self.xyzw, use the bigger one for numerical precision.
+            let (abs_angle1, abs_angle2) = if self.c.abs() > self.xyzw.abs() {
+                (
+                    (bivec1.magnitude() / self.c.abs()).atan(),
+                    (bivec2.magnitude() / self.c.abs()).atan(),
+                )
+            } else {
+                (
+                    (self.xyzw.abs() / bivec2.magnitude()).atan(),
+                    (self.xyzw.abs() / bivec1.magnitude()).atan(),
+                )
+            };
+            let bivec1 = bivec1.normalized();
+            let mut bivec2 = bivec2.normalized();
+
+            let sign_c = self.c > 0.0;
+            let sign_xyzw = self.xyzw > 0.0;
+            let (angle1, angle2) = match (sign_c, sign_xyzw) {
+                (true, true) => (abs_angle1, abs_angle2),
+                (true, false) => (abs_angle1, -abs_angle2),
+                (false, true) => (-abs_angle1 + PI, abs_angle2),
+                (false, false) => (-abs_angle1 + PI, -abs_angle2),
+            };
+            // If the coefficient for B2 is negative, need to flip the vector so
+            // the bivector components still sum to the right value.
+            if angle1.cos() * angle2.sin() < 0.0 {
+                bivec2 = bivec2.scaled(-1.0);
+            }
+
             Ok(RotorLog4::DoubleRotation {
                 bivec1: bivec1.normalized(),
                 angle1,
@@ -90,12 +154,64 @@ impl Rotor4 {
 
     /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
     pub fn into_mat4<M: Mat4>(&self) -> M {
-        todo!()
+        macro_rules! get {
+            [c] => {
+                self.c
+            };
+            [xyzw] => {
+                self.xyzw
+            };
+            [$b:ident] => {
+                self.bivec.$b
+            };
+        }
+        // Product of two rotor components, taken by name.
+        macro_rules! p {
+            ($a:ident,$b:ident) => {
+                get![$a] * get![$b]
+            };
+        }
+        // This took like 2 days of algebra to derive, basically just do RxR^-1 and simplify but there's hundreds of terms.
+        // Don't worry about duplicate products, complier optimization handles it.
+        let mut arr = [
+            [
+                0.5 - p!(xy, xy) - p!(xz, xz) - p!(xw, xw) - p!(xyzw, xyzw),
+                p!(c, xy) - p!(xz, yz) + p!(xw, wy) + p!(zw, xyzw),
+                p!(c, xz) + p!(xy, yz) - p!(xw, zw) + p!(wy, xyzw),
+                p!(c, xw) - p!(xy, wy) + p!(xz, zw) + p!(yz, xyzw),
+            ],
+            [
+                -p!(c, xy) - p!(xz, yz) + p!(xw, wy) - p!(zw, xyzw),
+                0.5 - p!(xy, xy) - p!(yz, yz) - p!(wy, wy) - p!(xyzw, xyzw),
+                p!(c, yz) - p!(xy, xz) + p!(wy, zw) + p!(xw, xyzw),
+                -p!(c, wy) - p!(xw, xy) + p!(yz, zw) - p!(xz, xyzw),
+            ],
+            [
+                -p!(c, xz) + p!(xy, yz) - p!(xw, zw) - p!(wy, xyzw),
+                -p!(c, yz) - p!(xy, xz) + p!(wy, zw) - p!(xw, xyzw),
+                0.5 - p!(xz, xz) - p!(yz, yz) - p!(zw, zw) - p!(xyzw, xyzw),
+                p!(c, zw) - p!(xz, xw) + p!(yz, wy) + p!(xy, xyzw),
+            ],
+            [
+                -p!(c, xw) - p!(xy, wy) + p!(xz, zw) - p!(yz, xyzw),
+                p!(c, wy) - p!(xy, xw) + p!(yz, zw) + p!(xz, xyzw),
+                -p!(c, zw) - p!(xz, xw) + p!(yz, wy) - p!(xy, xyzw),
+                0.5 - p!(xw, xw) - p!(wy, wy) - p!(zw, zw) - p!(xyzw, xyzw),
+            ],
+        ];
+        for row in arr.iter_mut() {
+            for item in row.iter_mut() {
+                *item *= 2.0;
+            }
+        }
+        M::from_array(arr)
     }
 
     /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
     fn normalized(self) -> Self {
-        // let bivec_squared = self.bivec.square();
+        let bivec_squared = self.bivec.square();
+        dbg!(-bivec_squared.c + self.c * self.c + self.xyzw * self.xyzw);
+        dbg!(bivec_squared.xyzw + 2.0 * self.c * self.xyzw);
         // if !approx_equal(self.c, 0.0) {
         //     self.xyzw = bivec_squared.xyzw / (2.0 * self.c);
         //     let mag = (self.c * self.c - bivec_squared.c + self.xyzw * self.xyzw).sqrt();
@@ -111,8 +227,9 @@ impl Rotor4 {
 
 impl<V: Vec4> Transform<V> for Rotor4 {
     type Transformed = V;
-    fn transform(&self, operand: &V) -> Self::Transformed {
-        todo!()
+    fn transform(&self, operand: V) -> Self::Transformed {
+        let matrix: V::Matrix4 = self.into_mat4();
+        matrix * operand
     }
 }
 
@@ -164,7 +281,11 @@ pub enum RotorLog4 {
 impl RotorLog4 {
     pub fn exp(&self) -> Rotor4 {
         match self {
-            Self::Simple { bivec, angle } => bivec.scaled(*angle).exp(),
+            Self::Simple { bivec, angle } => Rotor4 {
+                c: angle.cos(),
+                bivec: bivec.scaled(angle.sin()).bivec,
+                xyzw: 0.0,
+            },
             Self::DoubleRotation {
                 bivec1,
                 angle1,
@@ -200,6 +321,20 @@ impl RotorLog4 {
                 bivec2: *bivec2,
                 angle2: scale * angle2,
             },
+        }
+    }
+}
+
+impl From<RotorLog4> for Bivec4 {
+    fn from(value: RotorLog4) -> Bivec4 {
+        match value {
+            RotorLog4::Simple { bivec, angle } => bivec.bivec.scaled(angle),
+            RotorLog4::DoubleRotation {
+                bivec1,
+                angle1,
+                bivec2,
+                angle2,
+            } => bivec1.bivec.scaled(angle1) + bivec2.bivec.scaled(angle2),
         }
     }
 }
@@ -271,6 +406,16 @@ impl Bivec4 {
             bivec: b1.scaled(angle1.sin() * angle2.cos()) + b2.scaled(angle1.cos() * angle2.sin()),
             xyzw: angle1.sin() * angle2.sin(),
         })
+    }
+
+    /// Returns the quadvector component of the wedge product of self and other.
+    pub fn wedge(&self, other: Bivec4) -> f32 {
+        self.xy * other.zw
+            + self.xz * other.wy
+            + self.xw * other.yz
+            + self.yz * other.xw
+            + self.wy * other.xz
+            + self.zw * other.xy
     }
 
     /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, B1^2 = B2^2 = -1.
@@ -359,14 +504,19 @@ pub struct SimpleBivec4 {
 }
 
 impl SimpleBivec4 {
-    pub fn bivec(&self) -> &Bivec4 {
-        &self.bivec
+    pub fn bivec(&self) -> Bivec4 {
+        self.bivec
     }
 
+    /// Multiplies this bivector by a positive scalar so that it squares to -1. If 0, returns 0.
     pub fn normalized(&self) -> Self {
-        Self {
-            bivec: self.bivec.scaled(self.magnitude().recip()),
-        }
+        let magnitude = self.magnitude();
+        let bivec = if approx_equal(magnitude, 0.0) {
+            Bivec4::ZERO
+        } else {
+            self.bivec.scaled(magnitude.recip())
+        };
+        Self { bivec }
     }
 
     pub fn scaled(&self, scale: f32) -> Self {
@@ -402,18 +552,12 @@ pub enum RotorError {
     #[error("Bivector {0:?} was not simple, had square {1:?}")]
     NotSimple(Bivec4, ScalarPlusQuadvec4),
 }
-impl TryFrom<&Bivec4> for SimpleBivec4 {
-    type Error = RotorError;
-    fn try_from(value: &Bivec4) -> Result<Self, Self::Error> {
-        SimpleBivec4::try_from(*value)
-    }
-}
 impl TryFrom<Bivec4> for SimpleBivec4 {
     type Error = RotorError;
     fn try_from(value: Bivec4) -> Result<Self, Self::Error> {
         let square = value.square();
         // This check can fail for bivectors with large magnitude, but works up to ~100 which is fine for rotations.
-        if approx_equal(value.square().xyzw, 0.0) {
+        if approx_equal(square.xyzw, 0.0) {
             Ok(SimpleBivec4 { bivec: value })
         } else {
             Err(RotorError::NotSimple(value, square))
@@ -422,11 +566,6 @@ impl TryFrom<Bivec4> for SimpleBivec4 {
 }
 impl From<SimpleBivec4> for Bivec4 {
     fn from(value: SimpleBivec4) -> Self {
-        value.bivec
-    }
-}
-impl From<&SimpleBivec4> for Bivec4 {
-    fn from(value: &SimpleBivec4) -> Self {
         value.bivec
     }
 }
@@ -472,14 +611,13 @@ impl Mul<ScalarPlusQuadvec4> for Bivec4 {
     }
 }
 
-const EPSILON: f32 = 1e-3;
 fn approx_equal(a: f32, b: f32) -> bool {
     crate::util::approx_equal(a, b, EPSILON)
 }
 
 #[cfg(test)]
 mod test {
-    use std::f32::consts::{PI, SQRT_2};
+    use std::f32::consts::{FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI, SQRT_2};
 
     use rand::SeedableRng;
 
@@ -512,6 +650,323 @@ mod test {
     }
 
     #[test]
+    fn test_rotor_between_transform_simple_180() {
+        let rotor = Rotor4::between(
+            glam::vec4(1.0, 0.0, 0.0, 0.0),
+            glam::vec4(0.0, 1.0, 0.0, 0.0),
+        );
+        let input = glam::vec4(1.0, 0.0, 0.0, 0.0);
+        let expected = glam::vec4(-1.0, 0.0, 0.0, 0.0);
+        dbg!(rotor);
+        dbg!(input);
+
+        let got = dbg!(rotor.transform(input));
+
+        assert!(vector_approx_equal(got, expected))
+    }
+    #[test]
+    fn test_rotor_between_transform_simple_90() {
+        let rotor = Rotor4::between(
+            glam::vec4(1.0, 0.0, 0.0, 0.0),
+            glam::vec4(SQRT_2 / 2.0, SQRT_2 / 2.0, 0.0, 0.0),
+        );
+        let input = glam::vec4(1.0, 0.0, 0.0, 0.0);
+        let expected = glam::vec4(0.0, 1.0, 0.0, 0.0);
+        dbg!(rotor);
+        dbg!(input);
+
+        let got = dbg!(rotor.transform(input));
+
+        assert!(vector_approx_equal(got, expected))
+    }
+    #[test]
+    fn test_rotor_between_transform_isoclinic_90() {
+        let rotor = Rotor4 {
+            c: 0.5,
+            bivec: Bivec4 {
+                xy: 0.5,
+                zw: 0.5,
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.5,
+        };
+        let input = glam::vec4(1.0, 0.0, 1.0, 0.0);
+        let expected = glam::vec4(0.0, 1.0, 0.0, 1.0);
+        dbg!(rotor);
+        dbg!(input);
+        dbg!(expected);
+
+        let got = dbg!(rotor.transform(input));
+
+        assert!(vector_approx_equal(got, expected))
+    }
+
+    #[test]
+    fn test_rotor_from_bivec_angle_simple() {
+        let bivec = Bivec4 {
+            xy: FRAC_PI_3,
+            ..Bivec4::ZERO
+        };
+        let expected = Rotor4 {
+            c: FRAC_PI_6.cos(),
+            bivec: Bivec4 {
+                xy: FRAC_PI_6.sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        dbg!(bivec);
+        dbg!(expected);
+
+        let got = dbg!(Rotor4::from_bivec_angles(bivec)).unwrap();
+
+        assert!(rotor_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_from_bivec_angle_transform_simple() {
+        let bivec = Bivec4 {
+            xy: FRAC_PI_3,
+            ..Bivec4::ZERO
+        };
+        let vec = glam::vec4(1.0, 0.0, 0.0, 0.0);
+        let expected = glam::vec4(FRAC_PI_3.cos(), FRAC_PI_3.sin(), 0.0, 0.0);
+        dbg!(bivec);
+        dbg!(vec);
+        dbg!(expected);
+
+        let rotor = dbg!(Rotor4::from_bivec_angles(bivec)).unwrap();
+        let got = dbg!(rotor.transform(vec));
+
+        assert!(vector_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_simple() {
+        let rotor = Rotor4 {
+            c: SQRT_2 / 2.0,
+            bivec: Bivec4 {
+                xy: SQRT_2 / 2.0,
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        let expected = RotorLog4::Simple {
+            bivec: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle: FRAC_PI_4,
+        };
+        dbg!(rotor);
+        dbg!(expected);
+
+        let got = dbg!(rotor.log());
+
+        assert!(rotor_log_approx_equal(got.unwrap(), expected));
+    }
+
+    #[test]
+    fn test_rotor_log_simple_180() {
+        let rotor = Rotor4 {
+            c: 0.0,
+            bivec: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        let expected = RotorLog4::Simple {
+            bivec: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle: FRAC_PI_2,
+        };
+        dbg!(rotor);
+        dbg!(expected);
+
+        let got = dbg!(rotor.log()).unwrap();
+
+        assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_double_180() {
+        let rotor = Rotor4 {
+            c: 0.0,
+            bivec: Bivec4 {
+                xy: SQRT_2 / 2.0,
+                ..Bivec4::ZERO
+            },
+            xyzw: SQRT_2 / 2.0,
+        };
+        let expected = RotorLog4::DoubleRotation {
+            bivec1: Bivec4 {
+                zw: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle1: FRAC_PI_4,
+            bivec2: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle2: FRAC_PI_2,
+        };
+        dbg!(rotor);
+        dbg!(expected);
+
+        let got = dbg!(rotor.log()).unwrap();
+
+        assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_isoclinic_180() {
+        let rotor = Rotor4 {
+            c: 0.0,
+            bivec: Bivec4::ZERO,
+            xyzw: 1.0,
+        };
+        dbg!(rotor);
+
+        let got = dbg!(rotor.log()).unwrap();
+
+        if let RotorLog4::DoubleRotation {
+            bivec1,
+            angle1,
+            bivec2,
+            angle2,
+        } = got
+        {
+            assert!(approx_equal(angle1, FRAC_PI_2));
+            assert!(approx_equal(angle2, FRAC_PI_2));
+            assert!(!bivec_approx_equal(bivec1.bivec, Bivec4::ZERO));
+            assert!(!bivec_approx_equal(bivec2.bivec, Bivec4::ZERO));
+            assert!(rotor_approx_equal(got.exp(), rotor));
+        } else {
+            assert!(false, "Not a double rotation");
+        }
+    }
+
+    #[test]
+    fn test_rotor_log_double() {
+        let rotor = Rotor4 {
+            c: 0.5,
+            bivec: Bivec4 {
+                xy: 0.5,
+                zw: -0.5,
+                ..Bivec4::ZERO
+            },
+            xyzw: -0.5,
+        };
+        let expected = RotorLog4::DoubleRotation {
+            bivec1: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle1: FRAC_PI_4,
+            bivec2: Bivec4 {
+                zw: 1.0,
+                ..Bivec4::ZERO
+            }
+            .try_into()
+            .unwrap(),
+            angle2: -FRAC_PI_4,
+        };
+        dbg!(rotor);
+        dbg!(expected);
+
+        let got = dbg!(rotor.log()).unwrap();
+
+        assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_log_exp_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            // Generate random rotor, using two from-to
+            let bivector =
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
+            dbg!(bivector);
+            let rotor = dbg!(bivector.exp()).unwrap();
+
+            let log = dbg!(rotor.log()).unwrap();
+            let got = dbg!(log.exp());
+
+            let minus_got = Rotor4 {
+                c: -got.c,
+                bivec: -got.bivec,
+                xyzw: -got.xyzw,
+            };
+            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
+        }
+    }
+
+    #[test]
+    fn test_rotor_between_log_exp_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 2.0;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let from: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
+            let to: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
+            dbg!(from);
+            dbg!(to);
+
+            let rotor = dbg!(Rotor4::between(from, to));
+            let log = dbg!(rotor.log()).unwrap();
+            let got = dbg!(log.exp());
+
+            let minus_got = Rotor4 {
+                c: -got.c,
+                bivec: -got.bivec,
+                xyzw: -got.xyzw,
+            };
+            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
+        }
+    }
+
+    #[test]
+    fn test_rotor_between_with_half_pow_transforms_between_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 6.0;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let from: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
+            let to: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
+            dbg!(from);
+            dbg!(to);
+
+            let rotor = dbg!(Rotor4::between(from, to));
+            let half_rotor = dbg!(rotor.pow(0.5)).unwrap();
+            let got = dbg!(half_rotor.transform(from));
+
+            dbg!((got.dot(to) / (got.length() * to.length())).acos());
+            assert!(vector_approx_equal(got.normalize(), to.normalize()))
+        }
+    }
+
+    #[test]
     fn test_rotor_log_simple_scaled() {
         let val = RotorLog4::Simple {
             angle: PI / 4.0,
@@ -540,6 +995,47 @@ mod test {
         let got = dbg!(val.scaled(2.0));
 
         assert!(rotor_log_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_to_matrix_inverse_fuzz_test() {
+        const SEED: [u8; 32] = [2; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor = dbg!(Rotor4::from_bivec_angles(random_bivector(&mut gen))).unwrap();
+            dbg!(rotor);
+
+            let matrix: glam::Mat4 = dbg!(rotor.into_mat4());
+            let inv_matrix: glam::Mat4 = dbg!(rotor.inverse().into_mat4());
+            let prod = dbg!(matrix * inv_matrix);
+
+            assert!(prod.abs_diff_eq(glam::Mat4::IDENTITY, EPSILON));
+        }
+    }
+
+    #[test]
+    fn test_rotor_transform_preserves_scale_fuzz_test() {
+        const SEED: [u8; 32] = [2; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor = dbg!(Rotor4::from_bivec_angles(random_bivector(&mut gen))).unwrap();
+            let vec = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
+            dbg!(rotor);
+            dbg!(vec);
+
+            let got = dbg!(rotor.pow(0.5).unwrap().transform(vec));
+
+            let angle = (vec.dot(got) / (vec.length() * got.length())).acos();
+            dbg!(angle);
+            let length_diff = dbg!(vec.length() - got.length());
+            assert!(approx_equal(length_diff, 0.0));
+        }
     }
 
     #[test]
@@ -794,7 +1290,6 @@ mod test {
 
         let got = dbg!(val.factor_into_simple_orthogonal());
 
-        assert!(got.is_ok());
         let bivec1 = got.unwrap().0.bivec;
         assert!(bivec_approx_equal(bivec1, val) || bivec_approx_equal(bivec1, Bivec4::ZERO));
         let bivec2 = got.unwrap().1.bivec;
@@ -822,7 +1317,6 @@ mod test {
 
         let got = dbg!(val.factor_into_simple_orthogonal());
 
-        assert!(got.is_ok());
         let bivec1 = got.unwrap().0.bivec;
         assert!(bivec_approx_equal(bivec1, expected1) || bivec_approx_equal(bivec1, expected2));
         let bivec2 = got.unwrap().1.bivec;
@@ -850,7 +1344,6 @@ mod test {
 
         let got = dbg!(val.factor_into_simple_orthogonal());
 
-        assert!(got.is_ok());
         let bivec1 = got.unwrap().0.bivec;
         assert!(bivec_approx_equal(bivec1, expected1) || bivec_approx_equal(bivec1, expected2));
         let bivec2 = got.unwrap().1.bivec;
@@ -860,7 +1353,7 @@ mod test {
     #[test]
     fn test_bivec_factor_into_simple_orthogonal_fuzz_test() {
         // This test fails with a RANGE of ~100 because of precision, but think 50 is good enough for rotations.
-        const SEED: [u8; 32] = [1; 32];
+        const SEED: [u8; 32] = [2; 32];
         const FUZZ_ITERS: usize = 100;
         const RANGE: f32 = 50.0;
         let mut gen = rand::rngs::StdRng::from_seed(SEED);
@@ -871,7 +1364,6 @@ mod test {
 
             let got = dbg!(val.factor_into_simple_orthogonal());
 
-            assert!(got.is_ok());
             let bivec1 = got.unwrap().0.bivec;
             let bivec2 = got.unwrap().1.bivec;
             assert!(bivec_approx_equal(bivec1 + bivec2, val));
@@ -883,9 +1375,34 @@ mod test {
                     + bivec1.wy * bivec2.wy
                     + bivec1.zw * bivec2.zw
             );
-            assert!(approx_equal(dot, 0.0));
-            // Technically need to check that bivector component of product is 0, but it's like 24 terms and I'm not writing that out.
+            // Technically also need to check that bivector component of product is 0, but it's like 24 terms and I'm not writing that out.
+            assert!(approx_equal(
+                dot / (bivec1.square().c.abs().sqrt() * bivec2.square().c.abs().sqrt()),
+                0.0
+            ));
         }
+    }
+
+    #[test]
+    fn test_bivec_exp_simple() {
+        // Catches issues where one of the simple orthogonal factors is 0
+        let val = Bivec4 {
+            xy: FRAC_PI_3,
+            ..Bivec4::ZERO
+        };
+        let expected = Rotor4 {
+            c: FRAC_PI_3.cos(),
+            bivec: Bivec4 {
+                xy: FRAC_PI_3.sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        dbg!(expected);
+
+        let got = dbg!(val.exp());
+
+        assert!(rotor_approx_equal(got.unwrap(), expected));
     }
 
     #[test]
@@ -912,6 +1429,18 @@ mod test {
     }
 
     #[test]
+    fn test_simple_bivec_normalized_zero() {
+        let val = SimpleBivec4 {
+            bivec: Bivec4::ZERO,
+        };
+        dbg!(val);
+
+        let got = dbg!(val.normalized());
+
+        assert!(simple_bivec_approx_equal(got, val));
+    }
+
+    #[test]
     fn test_simple_bivec_scaled() {
         let val = SimpleBivec4 {
             bivec: Bivec4 {
@@ -930,6 +1459,24 @@ mod test {
         let got = dbg!(val.scaled(2.0));
 
         assert!(simple_bivec_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_simple_bivec_normalized_scaled() {
+        let val = SimpleBivec4 {
+            bivec: Bivec4 {
+                xy: 1.0,
+                xz: 2.0,
+                yz: 3.0,
+                ..Bivec4::ZERO
+            },
+        };
+        dbg!(val);
+
+        let normalized = dbg!(val.normalized());
+        let got = dbg!(normalized.scaled(val.magnitude()));
+
+        assert!(simple_bivec_approx_equal(got, val));
     }
 
     #[test]
@@ -1003,7 +1550,6 @@ mod test {
 
         let got = dbg!(SimpleBivec4::try_from(val));
 
-        assert!(got.is_ok());
         assert!(bivec_approx_equal(got.unwrap().bivec, val));
     }
 
@@ -1021,33 +1567,6 @@ mod test {
     }
 
     #[test]
-    fn test_simple_bivec_try_from_non_simple_bivec_ref_returns_err() {
-        let val = Bivec4 {
-            xy: 1.0,
-            zw: 1.0,
-            ..Bivec4::ZERO
-        };
-
-        let got = dbg!(SimpleBivec4::try_from(&val));
-
-        assert!(got.is_err());
-    }
-
-    #[test]
-    fn test_simple_bivec_try_from_bivec_ref() {
-        let val = Bivec4 {
-            xy: 1.0,
-            ..Bivec4::ZERO
-        };
-        dbg!(val);
-
-        let got = dbg!(SimpleBivec4::try_from(&val));
-
-        assert!(got.is_ok());
-        assert!(bivec_approx_equal(got.unwrap().bivec, val));
-    }
-
-    #[test]
     fn test_bivec_from_simple_bivec() {
         let val = SimpleBivec4 {
             bivec: Bivec4::ZERO,
@@ -1055,18 +1574,6 @@ mod test {
         dbg!(val);
 
         let got = dbg!(Bivec4::from(val));
-
-        assert!(bivec_approx_equal(got, val.bivec))
-    }
-
-    #[test]
-    fn test_bivec_from_simple_bivec_ref() {
-        let val = SimpleBivec4 {
-            bivec: Bivec4::ZERO,
-        };
-        dbg!(val);
-
-        let got = dbg!(Bivec4::from(&val));
 
         assert!(bivec_approx_equal(got, val.bivec))
     }
@@ -1129,6 +1636,13 @@ mod test {
 pub(crate) mod test_util {
     use super::*;
 
+    pub fn vector_approx_equal<V: Vec4>(a: V, b: V) -> bool {
+        approx_equal(a.x(), b.x())
+            && approx_equal(a.y(), b.y())
+            && approx_equal(a.z(), b.z())
+            && approx_equal(a.w(), b.w())
+    }
+
     pub fn rotor_approx_equal(a: Rotor4, b: Rotor4) -> bool {
         approx_equal(a.c, b.c)
             && bivec_approx_equal(a.bivec, b.bivec)
@@ -1136,38 +1650,7 @@ pub(crate) mod test_util {
     }
 
     pub fn rotor_log_approx_equal(a: RotorLog4, b: RotorLog4) -> bool {
-        match (a, b) {
-            (
-                RotorLog4::Simple {
-                    bivec: a_bivec,
-                    angle: a_angle,
-                },
-                RotorLog4::Simple {
-                    bivec: b_bivec,
-                    angle: b_angle,
-                },
-            ) => approx_equal(a_angle, b_angle) && simple_bivec_approx_equal(a_bivec, b_bivec),
-            (
-                RotorLog4::DoubleRotation {
-                    bivec1: a_bivec1,
-                    angle1: a_angle1,
-                    bivec2: a_bivec2,
-                    angle2: a_angle2,
-                },
-                RotorLog4::DoubleRotation {
-                    bivec1: b_bivec1,
-                    angle1: b_angle1,
-                    bivec2: b_bivec2,
-                    angle2: b_angle2,
-                },
-            ) => {
-                approx_equal(a_angle1, b_angle1)
-                    && approx_equal(a_angle2, b_angle2)
-                    && simple_bivec_approx_equal(a_bivec1, b_bivec1)
-                    && simple_bivec_approx_equal(a_bivec2, b_bivec2)
-            }
-            _ => false,
-        }
+        bivec_approx_equal(Bivec4::from(a), Bivec4::from(b))
     }
 
     pub fn bivec_approx_equal(a: Bivec4, b: Bivec4) -> bool {
@@ -1197,5 +1680,9 @@ pub(crate) mod test_util {
             wy: gen.gen(),
             zw: gen.gen(),
         }
+    }
+
+    pub fn random_vector<R: rand::Rng, V: Vec4>(gen: &mut R) -> V {
+        V::new(gen.gen(), gen.gen(), gen.gen(), gen.gen())
     }
 }
