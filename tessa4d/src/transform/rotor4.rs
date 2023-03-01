@@ -109,16 +109,15 @@ impl Rotor4 {
             let (bivec1, bivec2) = self.bivec.factor_into_simple_orthogonal()?;
             // Because bivec magnitude is always positive, essentially have x and |y| which breaks atan2
             // Need to figure out quadrant based on signs of other terms.
-            // Also, can calculate from either self.c or self.xyzw, use the bigger one for numerical precision.
+            // Also, can calculate from either self.c or self.xyzw, use the bigger one for precision.
+            let mag1 = bivec1.magnitude();
+            let mag2 = bivec2.magnitude();
             let (abs_angle1, abs_angle2) = if self.c.abs() > self.xyzw.abs() {
-                (
-                    (bivec1.magnitude() / self.c.abs()).atan(),
-                    (bivec2.magnitude() / self.c.abs()).atan(),
-                )
+                ((mag1 / self.c.abs()).atan(), (mag2 / self.c.abs()).atan())
             } else {
                 (
-                    (self.xyzw.abs() / bivec2.magnitude()).atan(),
-                    (self.xyzw.abs() / bivec1.magnitude()).atan(),
+                    (self.xyzw.abs() / mag2).atan(),
+                    (self.xyzw.abs() / mag1).atan(),
                 )
             };
             let bivec1 = bivec1.normalized();
@@ -132,24 +131,26 @@ impl Rotor4 {
                 (false, true) => (-abs_angle1 + PI, abs_angle2),
                 (false, false) => (-abs_angle1 + PI, -abs_angle2),
             };
-            // If the coefficient for B2 is negative, need to flip the vector so
+            // If the coefficient for B2 is negative, need to flip it so
             // the bivector components still sum to the right value.
             if angle1.cos() * angle2.sin() < 0.0 {
                 bivec2 = bivec2.scaled(-1.0);
             }
 
-            Ok(RotorLog4::DoubleRotation {
+            let result = Ok(RotorLog4::DoubleRotation {
                 bivec1: bivec1.normalized(),
                 angle1,
                 bivec2: bivec2.normalized(),
                 angle2,
-            })
+            });
+
+            result
         }
     }
 
     /// Computes R^exponent as exp(exponent * log(R)).
     pub fn pow(&self, exponent: f32) -> Result<Rotor4, RotorError> {
-        Ok(self.log()?.scaled(exponent).exp().normalized())
+        Ok(self.log()?.scaled(exponent).exp())
     }
 
     /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
@@ -207,20 +208,36 @@ impl Rotor4 {
         M::from_array(arr)
     }
 
-    /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
-    fn normalized(self) -> Self {
+    /// Returns RR^{-1}, should be (1, 0) if the rotor is properly normalized.
+    fn normalization_error(&self) -> ScalarPlusQuadvec4 {
         let bivec_squared = self.bivec.square();
-        dbg!(-bivec_squared.c + self.c * self.c + self.xyzw * self.xyzw);
-        dbg!(bivec_squared.xyzw + 2.0 * self.c * self.xyzw);
+        ScalarPlusQuadvec4 {
+            c: self.c * self.c + self.xyzw * self.xyzw - bivec_squared.c,
+            xyzw: 2.0 * self.c * self.xyzw - bivec_squared.xyzw,
+        }
+    }
+
+    /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
+    fn normalized(mut self) -> Self {
+        let error = dbg!(self.normalization_error());
+        // // assert!(approx_equal(xyzw_err, 0.0));
         // if !approx_equal(self.c, 0.0) {
-        //     self.xyzw = bivec_squared.xyzw / (2.0 * self.c);
-        //     let mag = (self.c * self.c - bivec_squared.c + self.xyzw * self.xyzw).sqrt();
-        //     self.c /= mag;
-        //     self.bivec = self.bivec.scaled(mag);
-        //     self.xyzw /= mag;
-        // } else {
-        //     self.xyzw = (1.0 - bivec_squared.c).sqrt();
+            let corrected_xyzw = self.bivec.square().xyzw / (2.0 * self.c);
+            // self.xyzw = corrected_xyzw;
+            // let correction_factor = (corrected_xyzw / self.xyzw).sqrt();
+            // dbg!(corrected_xyzw / self.xyzw);
+            // self.xyzw *= correction_factor;
+            // self.bivec.scaled(1.0 / correction_factor);
         // }
+        // let xyzw_err = bivec_squared.xyzw - 2.0 * self.c * self.xyzw;
+        // dbg!(xyzw_err);
+
+        // let magnitude = error.c.sqrt();
+        // self.c /= magnitude;
+        // self.bivec = self.bivec.scaled(1.0 / magnitude);
+        // self.xyzw /= magnitude;
+
+        dbg!(self.normalization_error());
         self
     }
 }
@@ -235,8 +252,62 @@ impl<V: Vec4> Transform<V> for Rotor4 {
 
 impl Compose<Rotor4> for Rotor4 {
     type Composed = Rotor4;
-    fn compose(&self, other: &Rotor4) -> Self::Composed {
-        todo!()
+    fn compose(&self, other: Rotor4) -> Self::Composed {
+        macro_rules! get {
+            ($x:ident, c) => {
+                $x.c
+            };
+            ($x:ident, xyzw) => {
+                $x.xyzw
+            };
+            ($x:ident, $b:ident) => {
+                $x.bivec.$b
+            };
+        }
+        // Multiplies a field from self with one from other, shortcut to remove all the `self.bivec.xy * other.bivec.zw`
+        // e.g. p!(c, xy) => self.c * other.bivec.xy
+        macro_rules! p {
+            ($a:ident, $b:ident) => {
+                get!(self, $a) * get!(other, $b)
+            };
+        }
+        let a_scalarquadvec_b_bivec = ScalarPlusQuadvec4 {
+            c: self.c,
+            xyzw: self.xyzw,
+        } * other.bivec;
+        let b_scalarquadvec_a_bivec = ScalarPlusQuadvec4 {
+            c: other.c,
+            xyzw: other.xyzw,
+        } * self.bivec;
+        Rotor4 {
+            c: p!(c, c)
+                - p!(xy, xy)
+                - p!(xz, xz)
+                - p!(xw, xw)
+                - p!(yz, yz)
+                - p!(wy, wy)
+                - p!(zw, zw)
+                + p!(xyzw, xyzw),
+            bivec: a_scalarquadvec_b_bivec
+                + b_scalarquadvec_a_bivec
+                + Bivec4 {
+                    xy: -p!(xz, yz) + p!(xw, wy) + p!(yz, xz) - p!(wy, xw),
+                    xz: p!(xy, yz) - p!(xw, zw) - p!(yz, xy) + p!(zw, xw),
+                    xw: -p!(xy, wy) + p!(xz, zw) + p!(wy, xy) - p!(zw, xz),
+                    yz: -p!(xy, xz) + p!(xz, xy) + p!(wy, zw) - p!(zw, wy),
+                    wy: p!(xy, xw) - p!(xw, xy) - p!(yz, zw) + p!(zw, yz),
+                    zw: -p!(xz, xw) + p!(xw, xz) + p!(yz, wy) - p!(wy, yz),
+                },
+            xyzw: p!(c, xyzw)
+                + p!(xy, zw)
+                + p!(xz, wy)
+                + p!(xw, yz)
+                + p!(yz, xw)
+                + p!(wy, xz)
+                + p!(zw, xy)
+                + p!(xyzw, c),
+        }
+        .normalized()
     }
 }
 
@@ -252,12 +323,12 @@ impl Inverse for Rotor4 {
 }
 
 impl InterpolateWith for Rotor4 {
-    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
         let inner = self.inverse().compose(other).pow(fraction);
         // Fall back to one input or the other on failure.
         inner.map_or_else(
-            |_| if fraction < 0.5 { *self } else { *other },
-            |x| self.compose(&x),
+            |_| if fraction < 0.5 { *self } else { other },
+            |x| self.compose(x),
         )
     }
 }
@@ -302,6 +373,7 @@ impl RotorLog4 {
                 }
             }
         }
+        .normalized()
     }
 
     pub fn scaled(&self, scale: f32) -> Self {
@@ -401,10 +473,13 @@ impl Bivec4 {
         let angle2 = b2.magnitude();
         let b1 = b1.normalized();
         let b2 = b2.normalized();
+        let wedge = b1.bivec.wedge(b2.bivec);
+        let (angle1_sin, angle1_cos) = angle1.sin_cos();
+        let (angle2_sin, angle2_cos) = angle2.sin_cos();
         Ok(Rotor4 {
-            c: angle1.cos() * angle2.cos(),
-            bivec: b1.scaled(angle1.sin() * angle2.cos()) + b2.scaled(angle1.cos() * angle2.sin()),
-            xyzw: angle1.sin() * angle2.sin(),
+            c: angle1_cos * angle2_cos,
+            bivec: b1.scaled(angle1_sin * angle2_cos) + b2.scaled(angle1_cos * angle2_sin),
+            xyzw: angle1_sin * angle2_sin * wedge,
         })
     }
 
@@ -423,7 +498,9 @@ impl Bivec4 {
         &self,
     ) -> Result<(SimpleBivec4, SimpleBivec4), RotorError> {
         let squared = self.square();
-        if approx_equal(squared.c.abs(), squared.xyzw.abs()) {
+        let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
+        if approx_equal(det.abs(), 0.0) {
+            let sign = self.xy.signum() * self.zw.signum();
             Ok((
                 Bivec4 {
                     xy: self.xy,
@@ -441,16 +518,19 @@ impl Bivec4 {
                 .try_into()?,
             ))
         } else {
-            let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
             let factor1 = ScalarPlusQuadvec4 {
-                c: (-squared.c + det) / (2.0 * det),
-                xyzw: squared.xyzw / (2.0 * det),
+                c: (-squared.c + det),
+                xyzw: squared.xyzw,
             };
             let factor2 = ScalarPlusQuadvec4 {
-                c: (squared.c + det) / (2.0 * det),
-                xyzw: -squared.xyzw / (2.0 * det),
+                c: (squared.c + det),
+                xyzw: -squared.xyzw,
             };
-            Ok(((*self * factor1).try_into()?, (*self * factor2).try_into()?))
+            let scale = 1.0 / (2.0 * det);
+            Ok((
+                SimpleBivec4::try_from((*self * factor1).scaled(scale))?,
+                SimpleBivec4::try_from((*self * factor2).scaled(scale))?,
+            ))
         }
     }
 }
@@ -579,6 +659,13 @@ impl Add for SimpleBivec4 {
     }
 }
 
+impl Neg for SimpleBivec4 {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        Self { bivec: -self.bivec }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 /// A scalar added to a 4D quadvector, returned by several operations on [Rotor4] and [Bivec4].
 pub struct ScalarPlusQuadvec4 {
@@ -618,6 +705,7 @@ fn approx_equal(a: f32, b: f32) -> bool {
 #[cfg(test)]
 mod test {
     use std::f32::consts::{FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI, SQRT_2};
+    use std::vec;
 
     use rand::SeedableRng;
 
@@ -858,6 +946,81 @@ mod test {
     }
 
     #[test]
+    fn test_rotor_compose_identity_is_same_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            let rotor = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+            dbg!(rotor);
+
+            let left = dbg!(Rotor4::IDENTITY.compose(rotor));
+            let right = dbg!(rotor.compose(Rotor4::IDENTITY));
+
+            assert!(rotor_approx_equal(left, rotor));
+            assert!(rotor_approx_equal(right, rotor));
+        }
+    }
+
+    #[test]
+    fn test_rotor_composed_transform_same_as_one_then_other_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor1 = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+            let rotor2 = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+            let vector = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - RANGE / 2.0;
+            dbg!(rotor1);
+            dbg!(rotor2);
+            dbg!(vector);
+
+            let composed = dbg!(rotor1.compose(rotor2));
+            let vector1 = dbg!(rotor1.transform(vector));
+            let vector2 = dbg!(rotor2.transform(vector1));
+            let vector_composed = dbg!(composed.transform(vector));
+
+            dbg!(vector2 - vector_composed);
+            assert!(vector_approx_equal(vector2, vector_composed));
+            assert!(!vector_approx_equal(vector2, vector));
+        }
+    }
+
+    #[test]
+    fn test_rotor_compose_inverse_is_identity_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+            dbg!(rotor);
+
+            let left = dbg!(rotor.compose(rotor.inverse()));
+            let right = dbg!(rotor.inverse().compose(rotor));
+
+            assert!(rotor_approx_equal(left, Rotor4::IDENTITY));
+            assert!(rotor_approx_equal(right, Rotor4::IDENTITY));
+        }
+    }
+
+    #[test]
     fn test_rotor_log_double() {
         let rotor = Rotor4 {
             c: 0.5,
@@ -900,11 +1063,10 @@ mod test {
         let mut gen = rand::rngs::StdRng::from_seed(SEED);
         for i in 0..FUZZ_ITERS {
             dbg!(i);
-            // Generate random rotor, using two from-to
             let bivector =
                 random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
-            dbg!(bivector);
-            let rotor = dbg!(bivector.exp()).unwrap();
+            let rotor = dbg!(Rotor4::from_bivec_angles(bivector)).unwrap();
+            dbg!(rotor);
 
             let log = dbg!(rotor.log()).unwrap();
             let got = dbg!(log.exp());
@@ -998,7 +1160,7 @@ mod test {
     }
 
     #[test]
-    fn test_rotor_to_matrix_inverse_fuzz_test() {
+    fn test_rotor_to_matrix_composed_with_inverse_is_identity_fuzz_test() {
         const SEED: [u8; 32] = [2; 32];
         const FUZZ_ITERS: usize = 100;
         const RANGE: f32 = 4.0;
@@ -1352,10 +1514,10 @@ mod test {
 
     #[test]
     fn test_bivec_factor_into_simple_orthogonal_fuzz_test() {
-        // This test fails with a RANGE of ~100 because of precision, but think 50 is good enough for rotations.
+        // This test fails with a RANGE of ~100 because of precision, current range is good enough for rotations.
         const SEED: [u8; 32] = [2; 32];
         const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 50.0;
+        const RANGE: f32 = 8.0 * PI;
         let mut gen = rand::rngs::StdRng::from_seed(SEED);
         for i in 0..FUZZ_ITERS {
             dbg!(i);
@@ -1403,6 +1565,25 @@ mod test {
         let got = dbg!(val.exp());
 
         assert!(rotor_approx_equal(got.unwrap(), expected));
+    }
+
+    #[test]
+    fn test_bivec_exp_log_exp_fuzz_test() {
+        const SEED: [u8; 32] = [2; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 2.0 * PI;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let bivec = random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
+            dbg!(bivec);
+
+            let exp = dbg!(bivec.exp()).unwrap().normalized();
+            let log_exp = dbg!(exp.log()).unwrap();
+            let exp_log_exp = dbg!(log_exp.exp());
+
+            assert!(rotor_approx_equal(exp_log_exp, exp));
+        }
     }
 
     #[test]

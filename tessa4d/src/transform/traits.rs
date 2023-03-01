@@ -16,7 +16,7 @@ pub trait Transform<T> {
 pub trait Compose<Other> {
     type Composed;
     /// Composes two transformations into one that performs both operations in sequence, self and then other.
-    fn compose(&self, other: &Other) -> Self::Composed;
+    fn compose(&self, other: Other) -> Self::Composed;
 }
 
 /// For transforms that are always invertible.
@@ -43,7 +43,7 @@ impl<T: Inverse> TryInverse for T {
 /// For transforms that can be interpolated.
 pub trait InterpolateWith {
     /// Interpolate between two transforms. Implementations must support fraction in [0,1].
-    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self;
+    fn interpolate_with(&self, other: Self, fraction: f32) -> Self;
 }
 
 /// Read-only 4-element vector. Allows swapping out linear algebra implementations.
