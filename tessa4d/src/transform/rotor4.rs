@@ -1,5 +1,3 @@
-// TODO Remove after implementing
-#![allow(unused_variables, dead_code)]
 use std::{
     f32::consts::{FRAC_PI_2, PI},
     ops::{Add, Mul, Neg, Sub},
@@ -62,89 +60,91 @@ impl Rotor4 {
     /// Returns an error if something that should be a simple bivector isn't, should only happen due to numerical errors.
     pub fn log(&self) -> Result<RotorLog4, RotorError> {
         let bivec_simple = SimpleBivec4::try_from(self.bivec);
-        if approx_equal(self.xyzw, 0.0) && bivec_simple.is_ok() {
-            let bivec = bivec_simple.unwrap();
-            let abs_angle = (bivec.magnitude() / self.c.abs()).atan();
-            let angle = if self.c > 0.0 {
-                abs_angle
-            } else {
-                PI - abs_angle
-            };
-            Ok(RotorLog4::Simple {
-                bivec: bivec.normalized(),
-                angle,
-            })
-        } else if approx_equal(self.c, 0.0) && bivec_simple.is_ok() {
-            let mut bivec2 = bivec_simple.unwrap();
-            let bivec2_magnitude = bivec2.magnitude();
-            // If the bivector component is zero, have an isoclinic rotation and any simple bivector works.
-            if approx_equal(bivec2_magnitude, 0.0) {
-                bivec2 = SimpleBivec4 {
-                    bivec: Bivec4 {
-                        xy: 1.0,
-                        ..Bivec4::ZERO
-                    },
+        match bivec_simple {
+            Ok(bivec) if approx_equal(self.xyzw, 0.0) => {
+                let bivec = bivec;
+                let abs_angle = (bivec.magnitude() / self.c.abs()).atan();
+                let angle = if self.c > 0.0 {
+                    abs_angle
+                } else {
+                    PI - abs_angle
+                };
+                Ok(RotorLog4::Simple {
+                    bivec: bivec.normalized(),
+                    angle,
+                })
+            }
+            Ok(bivec) if approx_equal(self.c, 0.0) => {
+                let mut bivec2 = bivec;
+                let bivec2_magnitude = bivec2.magnitude();
+                // If the bivector component is zero, have an isoclinic rotation and any simple bivector works.
+                if approx_equal(bivec2_magnitude, 0.0) {
+                    bivec2 = SimpleBivec4 {
+                        bivec: Bivec4 {
+                            xy: 1.0,
+                            ..Bivec4::ZERO
+                        },
+                    }
                 }
+                let angle1 = self.xyzw.atan2(bivec2_magnitude);
+                let angle2 = FRAC_PI_2;
+                let bivec2 = bivec2.normalized();
+                let bivec1 = SimpleBivec4 {
+                    bivec: Bivec4 {
+                        xy: bivec2.bivec.zw,
+                        xz: bivec2.bivec.wy,
+                        xw: bivec2.bivec.yz,
+                        yz: bivec2.bivec.xw,
+                        wy: bivec2.bivec.xz,
+                        zw: bivec2.bivec.xy,
+                    },
+                };
+                Ok(RotorLog4::DoubleRotation {
+                    bivec1,
+                    angle1,
+                    bivec2,
+                    angle2,
+                })
             }
-            let angle1 = self.xyzw.atan2(bivec2_magnitude);
-            let angle2 = FRAC_PI_2;
-            let bivec2 = bivec2.normalized();
-            let bivec1 = SimpleBivec4 {
-                bivec: Bivec4 {
-                    xy: bivec2.bivec.zw,
-                    xz: bivec2.bivec.wy,
-                    xw: bivec2.bivec.yz,
-                    yz: bivec2.bivec.xw,
-                    wy: bivec2.bivec.xz,
-                    zw: bivec2.bivec.xy,
-                },
-            };
-            Ok(RotorLog4::DoubleRotation {
-                bivec1,
-                angle1,
-                bivec2,
-                angle2,
-            })
-        } else {
-            let (bivec1, bivec2) = self.bivec.factor_into_simple_orthogonal()?;
-            // Because bivec magnitude is always positive, essentially have x and |y| which breaks atan2
-            // Need to figure out quadrant based on signs of other terms.
-            // Also, can calculate from either self.c or self.xyzw, use the bigger one for precision.
-            let mag1 = bivec1.magnitude();
-            let mag2 = bivec2.magnitude();
-            let (abs_angle1, abs_angle2) = if self.c.abs() > self.xyzw.abs() {
-                ((mag1 / self.c.abs()).atan(), (mag2 / self.c.abs()).atan())
-            } else {
-                (
-                    (self.xyzw.abs() / mag2).atan(),
-                    (self.xyzw.abs() / mag1).atan(),
-                )
-            };
-            let bivec1 = bivec1.normalized();
-            let mut bivec2 = bivec2.normalized();
+            _ => {
+                let (bivec1, bivec2) = self.bivec.factor_into_simple_orthogonal()?;
+                // Because bivec magnitude is always positive, essentially have x and |y| which breaks atan2
+                // Need to figure out quadrant based on signs of other terms.
+                // Also, can calculate from either self.c or self.xyzw, use the bigger one for precision.
+                let mag1 = bivec1.magnitude();
+                let mag2 = bivec2.magnitude();
+                let (abs_angle1, abs_angle2) = if self.c.abs() > self.xyzw.abs() {
+                    ((mag1 / self.c.abs()).atan(), (mag2 / self.c.abs()).atan())
+                } else {
+                    (
+                        (self.xyzw.abs() / mag2).atan(),
+                        (self.xyzw.abs() / mag1).atan(),
+                    )
+                };
+                let bivec1 = bivec1.normalized();
+                let mut bivec2 = bivec2.normalized();
 
-            let sign_c = self.c > 0.0;
-            let sign_xyzw = self.xyzw > 0.0;
-            let (angle1, angle2) = match (sign_c, sign_xyzw) {
-                (true, true) => (abs_angle1, abs_angle2),
-                (true, false) => (abs_angle1, -abs_angle2),
-                (false, true) => (-abs_angle1 + PI, abs_angle2),
-                (false, false) => (-abs_angle1 + PI, -abs_angle2),
-            };
-            // If the coefficient for B2 is negative, need to flip it so
-            // the bivector components still sum to the right value.
-            if angle1.cos() * angle2.sin() < 0.0 {
-                bivec2 = bivec2.scaled(-1.0);
+                let sign_c = self.c > 0.0;
+                let sign_xyzw = self.xyzw > 0.0;
+                let (angle1, angle2) = match (sign_c, sign_xyzw) {
+                    (true, true) => (abs_angle1, abs_angle2),
+                    (true, false) => (abs_angle1, -abs_angle2),
+                    (false, true) => (-abs_angle1 + PI, abs_angle2),
+                    (false, false) => (-abs_angle1 + PI, -abs_angle2),
+                };
+                // If the coefficient for B2 is negative, need to flip it so
+                // the bivector components still sum to the right value.
+                if angle1.cos() * angle2.sin() < 0.0 {
+                    bivec2 = bivec2.scaled(-1.0);
+                }
+
+                Ok(RotorLog4::DoubleRotation {
+                    bivec1: bivec1.normalized(),
+                    angle1,
+                    bivec2: bivec2.normalized(),
+                    angle2,
+                })
             }
-
-            let result = Ok(RotorLog4::DoubleRotation {
-                bivec1: bivec1.normalized(),
-                angle1,
-                bivec2: bivec2.normalized(),
-                angle2,
-            });
-
-            result
         }
     }
 
@@ -208,36 +208,15 @@ impl Rotor4 {
         M::from_array(arr)
     }
 
-    /// Returns RR^{-1}, should be (1, 0) if the rotor is properly normalized.
-    fn normalization_error(&self) -> ScalarPlusQuadvec4 {
-        let bivec_squared = self.bivec.square();
-        ScalarPlusQuadvec4 {
-            c: self.c * self.c + self.xyzw * self.xyzw - bivec_squared.c,
-            xyzw: 2.0 * self.c * self.xyzw - bivec_squared.xyzw,
-        }
-    }
-
     /// Internal, users should not have to call this, implementation must guarantee that the rotor stays normalized.
-    fn normalized(mut self) -> Self {
-        let error = dbg!(self.normalization_error());
-        // // assert!(approx_equal(xyzw_err, 0.0));
-        // if !approx_equal(self.c, 0.0) {
-            let corrected_xyzw = self.bivec.square().xyzw / (2.0 * self.c);
-            // self.xyzw = corrected_xyzw;
-            // let correction_factor = (corrected_xyzw / self.xyzw).sqrt();
-            // dbg!(corrected_xyzw / self.xyzw);
-            // self.xyzw *= correction_factor;
-            // self.bivec.scaled(1.0 / correction_factor);
-        // }
-        // let xyzw_err = bivec_squared.xyzw - 2.0 * self.c * self.xyzw;
-        // dbg!(xyzw_err);
+    fn normalized(self) -> Self {
+        // Method is wired up but empty because it doesn't seem necessary, tests pass without it.
 
-        // let magnitude = error.c.sqrt();
-        // self.c /= magnitude;
-        // self.bivec = self.bivec.scaled(1.0 / magnitude);
-        // self.xyzw /= magnitude;
-
-        dbg!(self.normalization_error());
+        // let bivec_squared = self.bivec.square();
+        // // Should be 1
+        // let magnitude = self.c * self.c + self.xyzw * self.xyzw - bivec_squared.c;
+        // // Should be 0
+        // let xyzw_err = 2.0 * self.c * self.xyzw - bivec_squared.xyzw;
         self
     }
 }
@@ -424,7 +403,7 @@ pub struct Bivec4 {
 }
 
 impl Bivec4 {
-    const ZERO: Self = Self {
+    pub const ZERO: Self = Self {
         xy: 0.0,
         xz: 0.0,
         xw: 0.0,
@@ -432,7 +411,7 @@ impl Bivec4 {
         wy: 0.0,
         zw: 0.0,
     };
-    const ONE: Self = Self {
+    pub const ONE: Self = Self {
         xy: 1.0,
         xz: 1.0,
         xw: 1.0,
@@ -500,7 +479,6 @@ impl Bivec4 {
         let squared = self.square();
         let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
         if approx_equal(det.abs(), 0.0) {
-            let sign = self.xy.signum() * self.zw.signum();
             Ok((
                 Bivec4 {
                     xy: self.xy,
@@ -674,8 +652,8 @@ pub struct ScalarPlusQuadvec4 {
 }
 
 impl ScalarPlusQuadvec4 {
-    const ZERO: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 0.0, xyzw: 0.0 };
-    const ONE: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 1.0, xyzw: 0.0 };
+    pub const ZERO: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 0.0, xyzw: 0.0 };
+    pub const ONE: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 1.0, xyzw: 0.0 };
 }
 
 impl Mul<Bivec4> for ScalarPlusQuadvec4 {
@@ -705,7 +683,6 @@ fn approx_equal(a: f32, b: f32) -> bool {
 #[cfg(test)]
 mod test {
     use std::f32::consts::{FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI, SQRT_2};
-    use std::vec;
 
     use rand::SeedableRng;
 
@@ -1017,6 +994,64 @@ mod test {
 
             assert!(rotor_approx_equal(left, Rotor4::IDENTITY));
             assert!(rotor_approx_equal(right, Rotor4::IDENTITY));
+        }
+    }
+
+    #[test]
+    fn test_rotor_compose_stability_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        const COMPOSE_ITERS: usize = 1000;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+
+            let mut compose_rotor = rotor;
+            for _ in 0..COMPOSE_ITERS {
+                compose_rotor = compose_rotor.compose(rotor);
+            }
+            for _ in 0..COMPOSE_ITERS {
+                compose_rotor = compose_rotor.compose(rotor.inverse());
+            }
+
+            dbg!(rotor);
+            dbg!(compose_rotor);
+            assert!(rotor_approx_equal(compose_rotor, rotor));
+        }
+    }
+
+    #[test]
+    fn test_rotor_transform_stability_fuzz_test() {
+        const SEED: [u8; 32] = [1; 32];
+        const FUZZ_ITERS: usize = 100;
+        const RANGE: f32 = 4.0 * PI;
+        const TRANSFORM_ITERS: usize = 100;
+        let mut gen = rand::rngs::StdRng::from_seed(SEED);
+        for i in 0..FUZZ_ITERS {
+            dbg!(i);
+            let rotor = Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
+            )
+            .unwrap();
+            let vector = random_vector::<_, glam::Vec4>(&mut gen);
+
+            let mut transform_vec = vector;
+            for _ in 0..TRANSFORM_ITERS {
+                transform_vec = rotor.transform(transform_vec);
+            }
+            for _ in 0..TRANSFORM_ITERS {
+                transform_vec = rotor.inverse().transform(transform_vec);
+            }
+
+            dbg!(rotor);
+            dbg!(vector);
+            dbg!(transform_vec);
+            assert!(vector_approx_equal(transform_vec, vector));
         }
     }
 
