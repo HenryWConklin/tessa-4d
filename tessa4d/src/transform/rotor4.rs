@@ -319,8 +319,7 @@ impl Inverse for Rotor4 {
 
 impl InterpolateWith for Rotor4 {
     fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        let inner = self.inverse().compose(other).pow(fraction);
-        self.compose(inner)
+        self.compose(self.inverse().compose(other).pow(fraction))
     }
 }
 
@@ -704,6 +703,7 @@ fn approx_equal(a: f32, b: f32) -> bool {
 
 #[cfg(test)]
 mod test {
+    //! Why so many tests? Because this module is loaded with arcane bullshit and I'll be damned if I'm figuring it all out again.
     use std::f32::consts::{FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI, SQRT_2};
 
     use rand::SeedableRng;
@@ -951,6 +951,7 @@ mod test {
         const RANGE: f32 = 4.0 * PI;
         let mut gen = rand::rngs::StdRng::from_seed(SEED);
         for i in 0..FUZZ_ITERS {
+            dbg!(i);
             let rotor = Rotor4::from_bivec_angles(
                 random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
             );
@@ -1242,7 +1243,9 @@ mod test {
         let mut gen = rand::rngs::StdRng::from_seed(SEED);
         for i in 0..FUZZ_ITERS {
             dbg!(i);
-            let rotor = dbg!(Rotor4::from_bivec_angles(random_bivector(&mut gen)));
+            let rotor = dbg!(Rotor4::from_bivec_angles(
+                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0)
+            ));
             dbg!(rotor);
 
             let matrix: glam::Mat4 = dbg!(rotor.into_mat4());
@@ -1385,6 +1388,32 @@ mod test {
         dbg!(expected);
 
         let got = dbg!(value.exp());
+
+        assert!(rotor_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_interpolate_uses_slerp() {
+        let rotor = Rotor4 {
+            c: 0.0,
+            bivec: Bivec4 {
+                xy: 1.0,
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        let frac = 0.3;
+        let expected = Rotor4 {
+            c: (FRAC_PI_2 * frac).cos(),
+            bivec: Bivec4 {
+                xy: (FRAC_PI_2 * frac).sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        dbg!(rotor, frac, expected);
+
+        let got = dbg!(Rotor4::IDENTITY.interpolate_with(rotor, frac));
 
         assert!(rotor_approx_equal(got, expected));
     }
