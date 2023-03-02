@@ -464,7 +464,7 @@ impl Bivec4 {
     }
 
     /// Returns the quadvector component of the wedge product of self and other.
-    pub fn wedge(&self, other: Bivec4) -> f32 {
+    fn wedge(&self, other: Bivec4) -> f32 {
         self.xy * other.zw
             + self.xz * other.wy
             + self.xw * other.yz
