@@ -14,6 +14,7 @@ impl Mat4 for glam::Mat4 {
 
 impl Vec4 for glam::Vec4 {
     type Matrix4 = glam::Mat4;
+    const ZERO: Self = glam::Vec4::ZERO;
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
         glam::Vec4::new(x, y, z, w)
     }

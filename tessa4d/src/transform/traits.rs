@@ -2,7 +2,7 @@
 //!
 //! [Vec4] and [Mat4] allow you to swap in your favorite linear algebra library.
 
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 
 use super::rotor4::Bivec4;
 
@@ -47,8 +47,9 @@ pub trait InterpolateWith {
 }
 
 /// Read-only 4-element vector. Allows swapping out linear algebra implementations.
-pub trait Vec4: Copy {
+pub trait Vec4: Copy + Add<Self, Output = Self> + Mul<f32, Output = Self> {
     type Matrix4: Mat4<Vector4 = Self>;
+    const ZERO: Self;
 
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self;
 
@@ -85,7 +86,7 @@ pub trait Vec4: Copy {
 
 /// Read-only 4x4 matrix. Allows swapping out linear algebra implementations.
 pub trait Mat4: Mul<Self::Vector4, Output = Self::Vector4> {
-    type Vector4: Vec4;
+    type Vector4: Vec4<Matrix4 = Self>;
     /// Identity matrix, 1s along the diagonal and 0s elsewhere.
     const IDENTITY: Self;
     /// Construct a 4x4 matrix from an array, takes input in column-major order.
@@ -94,7 +95,7 @@ pub trait Mat4: Mul<Self::Vector4, Output = Self::Vector4> {
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::ops::Mul;
+    use std::ops::{Add, Mul};
 
     use super::{Mat4, Vec4};
 
@@ -107,6 +108,12 @@ pub(crate) mod test_util {
     }
     impl Vec4 for TestVec4 {
         type Matrix4 = TestMat4;
+        const ZERO: Self = TestVec4 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        };
         fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
             Self { x, y, z, w }
         }
@@ -122,6 +129,18 @@ pub(crate) mod test_util {
         }
         fn w(self) -> f32 {
             self.w
+        }
+    }
+    impl Add<TestVec4> for TestVec4 {
+        type Output = Self;
+        fn add(self, _: TestVec4) -> Self::Output {
+            self
+        }
+    }
+    impl Mul<f32> for TestVec4 {
+        type Output = Self;
+        fn mul(self, _: f32) -> Self::Output {
+            self
         }
     }
     pub struct TestMat4;

@@ -152,8 +152,7 @@ impl Rotor4 {
         self.log().scaled(exponent).exp()
     }
 
-    /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
-    pub fn into_mat4<M: Mat4>(&self) -> M {
+    pub fn into_mat4_array(&self) -> [[f32; 4]; 4] {
         macro_rules! get {
             [c] => {
                 self.c
@@ -204,7 +203,12 @@ impl Rotor4 {
                 *item *= 2.0;
             }
         }
-        M::from_array(arr)
+        arr
+    }
+
+    /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
+    pub fn into_mat4<M: Mat4>(&self) -> M {
+        M::from_array(self.into_mat4_array())
     }
 
     /// Computes RR^-1, should be (1, 0) if the rotor is properly normalized.
