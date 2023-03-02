@@ -3,7 +3,9 @@ use std::{
     ops::{Add, Mul, Neg, Sub},
 };
 
-use super::traits::{Compose, InterpolateWith, Inverse, Mat4, Transform, Vec4};
+use crate::linear_algebra::traits::{Mat4, Vec4};
+
+use super::traits::{Compose, InterpolateWith, Inverse, Transform};
 use thiserror::Error;
 
 const EPSILON: f32 = 1e-3;

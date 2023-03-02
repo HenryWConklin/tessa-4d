@@ -1,8 +1,11 @@
-use crate::util::lerp;
+use crate::{
+    linear_algebra::traits::{Mat4, Vec4},
+    util::lerp,
+};
 
 use super::{
     rotor4::Rotor4,
-    traits::{Compose, InterpolateWith, Mat4, Transform, Vec4},
+    traits::{Compose, InterpolateWith, Transform},
 };
 
 /// Transform with rotation, uniform scale, and translation.
