@@ -243,8 +243,7 @@ impl Rotor4 {
 }
 
 impl<V: Vec4> Transform<V> for Rotor4 {
-    type Transformed = V;
-    fn transform(&self, operand: V) -> Self::Transformed {
+    fn transform(&self, operand: V) -> V {
         let matrix: V::Matrix4 = self.into_mat4();
         matrix * operand
     }

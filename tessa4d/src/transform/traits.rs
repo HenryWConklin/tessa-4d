@@ -1,10 +1,8 @@
 //! Traits for 4D transforms.
 
 pub trait Transform<T> {
-    type Transformed;
-
     /// Applies this transformation to a target type. May return a different type, e.g. for projections.
-    fn transform(&self, operand: T) -> Self::Transformed;
+    fn transform(&self, operand: T) -> T;
 }
 
 pub trait Compose<Other> {

@@ -73,8 +73,7 @@ impl<V: Vec4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> {
 }
 
 impl<V: Vec4> Transform<V> for RotateScaleTranslate4<V> {
-    type Transformed = V;
-    fn transform(&self, operand: V) -> Self::Transformed {
+    fn transform(&self, operand: V) -> V {
         self.rotation.transform(operand) * self.scale + self.translation
     }
 }
