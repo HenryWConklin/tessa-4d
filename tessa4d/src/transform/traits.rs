@@ -1,7 +1,7 @@
 //! Traits for 4D transforms.
 
 pub trait Transform<T> {
-    /// Applies this transformation to a target type. May return a different type, e.g. for projections.
+    /// Applies this transformation to a target type, returning the same type.
     fn transform(&self, operand: T) -> T;
 }
 
