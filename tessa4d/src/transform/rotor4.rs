@@ -56,8 +56,7 @@ impl Rotor4 {
         self.xyzw
     }
 
-    /// Inverse of a bivector exponential. Returned in "polar" coordinates for efficiency, bivectors will be normalized.
-    /// Returns an error if something that should be a simple bivector isn't, should only happen due to numerical errors.
+    /// Inverse of a bivector exponential. Returns a "polar" representation of the Rotor.
     pub fn log(&self) -> RotorLog4 {
         let bivec_simple = SimpleBivec4::try_from(self.bivec);
         match bivec_simple {
@@ -408,7 +407,7 @@ pub struct Bivec4 {
     pub xz: f32,
     pub xw: f32,
     pub yz: f32,
-    /// Note wy is flipped from what you might expected, this makes the multiplication tables for rotors nicer.
+    /// Note wy is flipped from what you might expect, this makes the multiplication tables for rotors nicer.
     pub wy: f32,
     pub zw: f32,
 }
@@ -430,19 +429,6 @@ impl Bivec4 {
         wy: 1.0,
         zw: 1.0,
     };
-
-    /// Returns the square of the bivector, as a [ScalarPlusQuadvec4].
-    pub fn square(&self) -> ScalarPlusQuadvec4 {
-        ScalarPlusQuadvec4 {
-            c: -(self.xy * self.xy
-                + self.xz * self.xz
-                + self.xw * self.xw
-                + self.yz * self.yz
-                + self.wy * self.wy
-                + self.zw * self.zw),
-            xyzw: 2.0 * (self.xy * self.zw + self.xz * self.wy + self.xw * self.yz),
-        }
-    }
 
     /// Scales the bivector by a scalar.
     pub fn scaled(&self, scale: f32) -> Self {
@@ -483,7 +469,7 @@ impl Bivec4 {
             + self.zw * other.xy
     }
 
-    /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, B1^2 = B2^2 = -1.
+    /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, B1^2, B2^2 are scalars.
     pub fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
         let squared = self.square();
         let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
@@ -523,7 +509,7 @@ impl Bivec4 {
 
     /// For vectors that are mathematically guranteed to be simple, but might not be due to float precision.
     /// Always returns a SimpleBivec4, panics in tests.
-    /// Consequences of vector not being simple when expected are incorrect results, not anything catastrophic.
+    /// Consequences of vector not being simple when expected are incorrect results, shouldn't be NaNs or anything catastrophic.
     fn force_simple(self) -> SimpleBivec4 {
         #[cfg(test)]
         {
@@ -531,6 +517,19 @@ impl Bivec4 {
             simple.expect("bivector should be simple");
         }
         SimpleBivec4 { bivec: self }
+    }
+
+    /// Returns the square of the bivector, as a [ScalarPlusQuadvec4].
+    fn square(&self) -> ScalarPlusQuadvec4 {
+        ScalarPlusQuadvec4 {
+            c: -(self.xy * self.xy
+                + self.xz * self.xz
+                + self.xw * self.xw
+                + self.yz * self.yz
+                + self.wy * self.wy
+                + self.zw * self.zw),
+            xyzw: 2.0 * (self.xy * self.zw + self.xz * self.wy + self.xw * self.yz),
+        }
     }
 }
 
@@ -628,8 +627,8 @@ impl SimpleBivec4 {
 
 #[derive(Clone, Copy, Debug, Error)]
 pub enum RotorError {
-    #[error("Bivector {0:?} was not simple, had square {1:?}")]
-    NotSimple(Bivec4, ScalarPlusQuadvec4),
+    #[error("Bivector {0:?} was not simple, had square with quadvec component {1:?}")]
+    NotSimple(Bivec4, f32),
 }
 impl TryFrom<Bivec4> for SimpleBivec4 {
     type Error = RotorError;
@@ -639,7 +638,7 @@ impl TryFrom<Bivec4> for SimpleBivec4 {
         if approx_equal(square.xyzw, 0.0) {
             Ok(SimpleBivec4 { bivec: value })
         } else {
-            Err(RotorError::NotSimple(value, square))
+            Err(RotorError::NotSimple(value, square.xyzw))
         }
     }
 }
@@ -666,15 +665,10 @@ impl Neg for SimpleBivec4 {
 }
 
 #[derive(Clone, Copy, Debug)]
-/// A scalar added to a 4D quadvector, returned by several operations on [Rotor4] and [Bivec4].
-pub struct ScalarPlusQuadvec4 {
-    pub c: f32,
-    pub xyzw: f32,
-}
-
-impl ScalarPlusQuadvec4 {
-    pub const ZERO: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 0.0, xyzw: 0.0 };
-    pub const ONE: ScalarPlusQuadvec4 = ScalarPlusQuadvec4 { c: 1.0, xyzw: 0.0 };
+/// A scalar added to a 4D quadvector, used by several operations on [Rotor4] and [Bivec4].
+struct ScalarPlusQuadvec4 {
+    c: f32,
+    xyzw: f32,
 }
 
 impl Mul<Bivec4> for ScalarPlusQuadvec4 {
@@ -1915,6 +1909,10 @@ mod test {
         assert!(bivec_approx_equal(result1, expected));
         assert!(bivec_approx_equal(result2, expected));
     }
+
+    fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
+        approx_equal(a.c, b.c) && approx_equal(a.xyzw, b.xyzw)
+    }
 }
 
 #[cfg(test)]
@@ -1949,10 +1947,6 @@ pub(crate) mod test_util {
 
     pub fn simple_bivec_approx_equal(a: SimpleBivec4, b: SimpleBivec4) -> bool {
         bivec_approx_equal(a.bivec, b.bivec)
-    }
-
-    pub fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
-        approx_equal(a.c, b.c) && approx_equal(a.xyzw, b.xyzw)
     }
 
     /// Generates a random bivector where each component is in [0, 1).
