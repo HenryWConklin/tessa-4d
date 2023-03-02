@@ -99,6 +99,34 @@ mod test {
     const EPS: f32 = 1e-3;
 
     #[test]
+    fn rotate_scale_matrix_applies_correct_transform() {
+        let transform = RotateScaleTranslate4 {
+            rotation: Rotor4::from_bivec_angles(Bivec4 {
+                xy: PI / 2.0,
+                ..Bivec4::ZERO
+            }),
+            scale: 2.0,
+            translation: glam::vec4(1.0, 2.0, 3.0, 4.0),
+        };
+        let vector = glam::vec4(5.0, 6.0, 7.0, 8.0);
+        let expected_vector = glam::vec4(-12.0, 10.0, 14.0, 16.0);
+        let expected_matrix = glam::Mat4::from_cols_array_2d(&[
+            [0.0, 2.0, 0.0, 0.0],
+            [-2.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 2.0, 0.0],
+            [0.0, 0.0, 0.0, 2.0],
+        ]);
+        dbg!(expected_vector);
+        dbg!(expected_matrix);
+
+        let got_matrix = dbg!(transform.get_rotate_scale_matrix());
+        let got_vector = dbg!(got_matrix * vector);
+
+        assert!(got_vector.abs_diff_eq(expected_vector, EPS));
+        assert!(got_matrix.abs_diff_eq(expected_matrix, EPS));
+    }
+
+    #[test]
     fn rotated_same_as_rotating_after() {
         let transform = RotateScaleTranslate4 {
             rotation: Rotor4::IDENTITY,
