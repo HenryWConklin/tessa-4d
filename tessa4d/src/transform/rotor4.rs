@@ -3,9 +3,9 @@ use std::{
     ops::{Add, Mul, Neg, Sub},
 };
 
-use crate::linear_algebra::traits::{Mat4, Vec4};
+use crate::linear_algebra::traits::{Matrix4, Vector4};
 
-use super::traits::{Compose, InterpolateWith, Inverse, Transform};
+use super::traits::{Compose, InterpolateWith, Inverse, Transform, TransformDirection};
 use thiserror::Error;
 
 const EPSILON: f32 = 1e-3;
@@ -26,7 +26,7 @@ impl Rotor4 {
     };
 
     /// Makes a rotor that rotates in the plane of `from` and `to` by the twice angle between them.
-    pub fn between<V: Vec4>(from: V, to: V) -> Self {
+    pub fn between<V: Vector4>(from: V, to: V) -> Self {
         let from = from.normalized();
         let to = to.normalized();
         Self {
@@ -209,7 +209,7 @@ impl Rotor4 {
     }
 
     /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
-    pub fn into_mat4<M: Mat4>(&self) -> M {
+    pub fn into_mat4<M: Matrix4>(&self) -> M {
         M::from_array(self.into_mat4_array())
     }
 
@@ -242,10 +242,15 @@ impl Rotor4 {
     }
 }
 
-impl<V: Vec4> Transform<V> for Rotor4 {
+impl<V: Vector4> Transform<V> for Rotor4 {
     fn transform(&self, operand: V) -> V {
         let matrix: V::Matrix4 = self.into_mat4();
         matrix * operand
+    }
+}
+impl<V: Vector4> TransformDirection<V> for Rotor4 {
+    fn transform_direction(&self, operand: V) -> V {
+        self.transform(operand)
     }
 }
 
@@ -1924,7 +1929,7 @@ mod test {
 pub(crate) mod test_util {
     use super::*;
 
-    pub fn vector_approx_equal<V: Vec4>(a: V, b: V) -> bool {
+    pub fn vector_approx_equal<V: Vector4>(a: V, b: V) -> bool {
         approx_equal(a.x(), b.x())
             && approx_equal(a.y(), b.y())
             && approx_equal(a.z(), b.z())
@@ -1966,7 +1971,7 @@ pub(crate) mod test_util {
         }
     }
 
-    pub fn random_vector<R: rand::Rng, V: Vec4>(gen: &mut R) -> V {
+    pub fn random_vector<R: rand::Rng, V: Vector4>(gen: &mut R) -> V {
         V::new(gen.gen(), gen.gen(), gen.gen(), gen.gen())
     }
 }

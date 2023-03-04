@@ -1,8 +1,12 @@
 //! Traits for 4D transforms.
 
 pub trait Transform<T> {
-    /// Applies this transformation to a target type, returning the same type.
+    /// Applies this transformation to a vector representing a point.
     fn transform(&self, operand: T) -> T;
+}
+pub trait TransformDirection<T> {
+    /// Applies this transformation to a unit direction vector, e.g. normal or tangent vectors.
+    fn transform_direction(&self, operand: T) -> T;
 }
 
 pub trait Compose<Other> {
@@ -34,6 +38,6 @@ impl<T: Inverse> TryInverse for T {
 
 /// For transforms that can be interpolated.
 pub trait InterpolateWith {
-    /// Interpolate between two transforms. Implementations must support fraction in [0,1].
+    /// Interpolate between two transforms. Implementations must support fraction between 0 and 1 inclusive.
     fn interpolate_with(&self, other: Self, fraction: f32) -> Self;
 }
