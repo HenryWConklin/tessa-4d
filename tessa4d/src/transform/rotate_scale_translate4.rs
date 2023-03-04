@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     rotor4::Rotor4,
-    traits::{Compose, InterpolateWith, Transform, TransformDirection},
+    traits::{Compose, InterpolateWith, Inverse, Transform, TransformDirection},
 };
 
 /// Transform with rotation, uniform scale, and translation.
@@ -90,6 +90,19 @@ impl<V: Vector4> InterpolateWith for RotateScaleTranslate4<V> {
             rotation: self.rotation.interpolate_with(other.rotation, fraction),
             scale: lerp(self.scale, other.scale, fraction),
             translation: lerp(self.translation, other.translation, fraction),
+        }
+    }
+}
+
+impl<V: Vector4> Inverse for RotateScaleTranslate4<V> {
+    type Inverted = Self;
+    fn inverse(&self) -> Self::Inverted {
+        let inverse_rotation = self.rotation.inverse();
+        let inverse_scale = 1.0 / self.scale;
+        Self {
+            rotation: inverse_rotation,
+            scale: inverse_scale,
+            translation: inverse_rotation.transform(self.translation) * (-inverse_scale),
         }
     }
 }
@@ -291,5 +304,25 @@ mod test {
         assert!(rotor_approx_equal(got.rotation, expected.rotation));
         assert!(approx_equal(got.scale, expected.scale, EPS));
         assert!(got.translation.abs_diff_eq(expected.translation, EPS));
+    }
+
+    #[test]
+    fn inverse_undoes_transform() {
+        let rotor = Rotor4::from_bivec_angles(Bivec4 {
+            xy: PI / 2.0,
+            ..Bivec4::ZERO
+        });
+        let transform = RotateScaleTranslate4 {
+            rotation: rotor,
+            scale: 2.0,
+            translation: glam::vec4(3.0, 4.0, 5.0, 6.0),
+        };
+        let vector = glam::vec4(1.0, 2.0, 3.0, 4.0);
+
+        let transformed = dbg!(transform.transform(vector));
+        let untransformed = dbg!(transform.inverse().transform(transformed));
+
+        assert!(untransformed.abs_diff_eq(vector, EPS));
+        assert!(!transformed.abs_diff_eq(vector, EPS));
     }
 }
