@@ -267,7 +267,7 @@ mod test {
                     assert_eq!(got.num_simplexes(), 1);
                     assert_eq!(got.num_vertices(), 3);
                     let simplex = got.get_simplex(0);
-                    // Should be opposite of the one positive case because the coords are mirrored
+                    // Should be opposite of the one positive case because the coords are mirrored so handedness is flipped.
                     assert!(!triangle_is_clockwise(simplex));
                 }
                 )*
