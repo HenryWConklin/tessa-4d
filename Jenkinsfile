@@ -8,5 +8,15 @@ pipeline {
                 sh 'cargo test'
             }
         }
+        stage('Clippy') {
+            steps {
+                sh 'cargo clippy'
+            }
+        }
+        stage('Format') {
+            steps {
+                sh 'cargo fmt --check'
+            }
+        }
     }
 }
