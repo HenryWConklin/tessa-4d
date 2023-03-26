@@ -1,8 +1,11 @@
-use crate::util::lerp;
+use crate::{
+    linear_algebra::traits::{Matrix4, Vector4},
+    util::lerp,
+};
 
 use super::{
     rotor4::Rotor4,
-    traits::{Compose, InterpolateWith, Mat4, Transform, Vec4},
+    traits::{Compose, InterpolateWith, Inverse, Transform, TransformDirection},
 };
 
 /// Transform with rotation, uniform scale, and translation.
@@ -14,7 +17,7 @@ pub struct RotateScaleTranslate4<V> {
     pub translation: V,
 }
 
-impl<V: Vec4> RotateScaleTranslate4<V> {
+impl<V: Vector4> RotateScaleTranslate4<V> {
     pub const IDENTITY: Self = Self {
         rotation: Rotor4::IDENTITY,
         scale: 1.0,
@@ -60,7 +63,7 @@ impl<V: Vec4> RotateScaleTranslate4<V> {
     }
 }
 
-impl<V: Vec4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> {
+impl<V: Vector4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> {
     type Composed = RotateScaleTranslate4<V>;
     fn compose(&self, other: RotateScaleTranslate4<V>) -> Self::Composed {
         self.rotated(other.rotation)
@@ -69,19 +72,37 @@ impl<V: Vec4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> {
     }
 }
 
-impl<V: Vec4> Transform<V> for RotateScaleTranslate4<V> {
-    type Transformed = V;
-    fn transform(&self, operand: V) -> Self::Transformed {
+impl<V: Vector4> Transform<V> for RotateScaleTranslate4<V> {
+    fn transform(&self, operand: V) -> V {
         self.rotation.transform(operand) * self.scale + self.translation
     }
 }
 
-impl<V: Vec4> InterpolateWith for RotateScaleTranslate4<V> {
+impl<V: Vector4> TransformDirection<V> for RotateScaleTranslate4<V> {
+    fn transform_direction(&self, operand: V) -> V {
+        self.rotation.transform(operand)
+    }
+}
+
+impl<V: Vector4> InterpolateWith for RotateScaleTranslate4<V> {
     fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
         Self {
             rotation: self.rotation.interpolate_with(other.rotation, fraction),
             scale: lerp(self.scale, other.scale, fraction),
             translation: lerp(self.translation, other.translation, fraction),
+        }
+    }
+}
+
+impl<V: Vector4> Inverse for RotateScaleTranslate4<V> {
+    type Inverted = Self;
+    fn inverse(&self) -> Self::Inverted {
+        let inverse_rotation = self.rotation.inverse();
+        let inverse_scale = 1.0 / self.scale;
+        Self {
+            rotation: inverse_rotation,
+            scale: inverse_scale,
+            translation: inverse_rotation.transform(self.translation) * (-inverse_scale),
         }
     }
 }
@@ -194,6 +215,26 @@ mod test {
     }
 
     #[test]
+    fn transform_direction_only_rotates() {
+        let rotor = Rotor4::from_bivec_angles(Bivec4 {
+            xy: PI / 2.0,
+            ..Bivec4::ZERO
+        });
+        let transform = RotateScaleTranslate4 {
+            rotation: rotor,
+            scale: 2.0,
+            translation: glam::vec4(1.0, 2.0, 3.0, 4.0),
+        };
+        let vector = glam::vec4(5.0, 6.0, 7.0, 8.0);
+        let expected = glam::vec4(-6.0, 5.0, 7.0, 8.0);
+        dbg!(expected);
+
+        let got = dbg!(transform.transform_direction(vector));
+
+        assert!(got.abs_diff_eq(expected, EPS));
+    }
+
+    #[test]
     fn composed_composes() {
         let transform1 = RotateScaleTranslate4 {
             rotation: Rotor4::from_bivec_angles(Bivec4 {
@@ -263,5 +304,25 @@ mod test {
         assert!(rotor_approx_equal(got.rotation, expected.rotation));
         assert!(approx_equal(got.scale, expected.scale, EPS));
         assert!(got.translation.abs_diff_eq(expected.translation, EPS));
+    }
+
+    #[test]
+    fn inverse_undoes_transform() {
+        let rotor = Rotor4::from_bivec_angles(Bivec4 {
+            xy: PI / 2.0,
+            ..Bivec4::ZERO
+        });
+        let transform = RotateScaleTranslate4 {
+            rotation: rotor,
+            scale: 2.0,
+            translation: glam::vec4(3.0, 4.0, 5.0, 6.0),
+        };
+        let vector = glam::vec4(1.0, 2.0, 3.0, 4.0);
+
+        let transformed = dbg!(transform.transform(vector));
+        let untransformed = dbg!(transform.inverse().transform(transformed));
+
+        assert!(untransformed.abs_diff_eq(vector, EPS));
+        assert!(!transformed.abs_diff_eq(vector, EPS));
     }
 }
