@@ -1,10 +1,10 @@
 pipeline {
     agent {
-        docker {image: 'rust:1.68.1-slim'}
+        docker { image 'rust:1.68.1-slim' }
     }
     stages {
         stage('Test') {
-            steps{
+            steps {
                 sh 'cargo test'
             }
         }
