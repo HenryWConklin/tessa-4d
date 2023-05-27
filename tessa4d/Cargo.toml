@@ -14,4 +14,5 @@ default = ["glam"]
 glam = ["dep:glam"]
 
 [dev-dependencies]
+proptest = "1.1.0"
 rand = "0.8.5"

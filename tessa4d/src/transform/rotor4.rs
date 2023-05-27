@@ -2,11 +2,10 @@ use std::{
     f32::consts::{FRAC_PI_2, PI},
     ops::{Add, Mul, Neg, Sub},
 };
-
-use crate::linear_algebra::traits::{Matrix4, Vector4};
+use thiserror::Error;
 
 use super::traits::{Compose, InterpolateWith, Inverse, Transform};
-use thiserror::Error;
+use crate::linear_algebra::traits::{Matrix4, Vector4};
 
 const EPSILON: f32 = 1e-3;
 
@@ -1922,11 +1921,8 @@ mod test {
 
 #[cfg(test)]
 pub(crate) mod test_util {
-    use std::{f32::consts::TAU, fmt::Debug};
-
     use proptest::strategy::{BoxedStrategy, Strategy};
-
-    use crate::linear_algebra::traits::Vector3;
+    use std::f32::consts::TAU;
 
     use super::*;
 
@@ -1997,17 +1993,6 @@ pub(crate) mod test_util {
                 wy,
                 zw,
             })
-            .boxed()
-    }
-
-    /// Uniform random 3D vector in the box [-range, range]^3.
-    pub fn arbitrary_vec3<V: Vector3 + Debug>(range: f32) -> BoxedStrategy<V> {
-        arbitrary_vec3_between(V::new(-range, -range, -range), V::new(range, range, range))
-    }
-
-    pub fn arbitrary_vec3_between<V: Vector3 + Debug>(min: V, max: V) -> BoxedStrategy<V> {
-        (min.x()..max.x(), min.y()..max.y(), min.z()..max.z())
-            .prop_map(|(x, y, z)| V::new(x, y, z))
             .boxed()
     }
 

@@ -1,131 +1,38 @@
+use super::ProjectOrthographic;
+use crate::mesh::{TetrahedronMesh, TriangleMesh};
+use crate::transform::traits::InterpolateWith;
 use std::collections::{hash_map::Entry, HashMap};
-
-use crate::{
-    linear_algebra::traits::{Vector2, Vector3, Vector4},
-    prelude::InterpolateWith,
-    transform::traits::{Transform, TransformDirection},
-    util::lerp,
-};
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vertex2<V: Vector2> {
-    pub position: V,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vertex3<V: Vector3> {
-    pub position: V,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Vertex4<V: Vector4> {
-    pub position: V,
-}
-
-/// Project a vertex to a lower dimension.
-pub trait Project {
-    type Projected;
-    /// This vertex projected to a lower dimension.
-    fn project(&self) -> Self::Projected;
-    /// How far the vertex is from the plane of projection.
-    fn projection_depth(&self) -> f32;
-}
-
-impl<V: Vector3> Project for Vertex3<V> {
-    type Projected = Vertex2<V::Vector2>;
-    fn projection_depth(&self) -> f32 {
-        self.position.z()
-    }
-    fn project(&self) -> Self::Projected {
-        Vertex2 {
-            position: V::Vector2::new(self.position.x(), self.position.y()),
-        }
-    }
-}
-
-impl<V: Vector4> Project for Vertex4<V> {
-    type Projected = Vertex3<V::Vector3>;
-    fn projection_depth(&self) -> f32 {
-        self.position.w()
-    }
-    fn project(&self) -> Self::Projected {
-        Vertex3 {
-            position: V::Vector3::new(self.position.x(), self.position.y(), self.position.z()),
-        }
-    }
-}
-
-impl<V: Vector2> InterpolateWith for Vertex2<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        Self {
-            position: lerp(self.position, other.position, fraction),
-        }
-    }
-}
-
-impl<V: Vector3> InterpolateWith for Vertex3<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        Self {
-            position: lerp(self.position, other.position, fraction),
-        }
-    }
-}
-
-impl<V: Vector4> InterpolateWith for Vertex4<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        Self {
-            position: lerp(self.position, other.position, fraction),
-        }
-    }
-}
-
-/// Generic mesh made of N-simplexes. e.g. a 3-simplex is a triangle, a 4-simplex is a tetrahedron.
-#[derive(Clone, Debug)]
-pub struct SimplexMesh<V, const N: usize> {
-    /// Unique vertices in the tetmesh.
-    /// Uniqueness is not required, but it is more efficient.
-    pub vertices: Vec<V>,
-    /// Indices into the `coordinates` vec representing the vertices of each N-simplex in the mesh.
-    pub simplexes: Vec<[usize; N]>,
-}
-
-pub type Trimesh<V> = SimplexMesh<V, 3>;
-pub type Tetmesh<V> = SimplexMesh<V, 4>;
-
-impl<V: Copy, const N: usize> SimplexMesh<V, N> {
-    pub fn apply_transform<T: Transform<V> + TransformDirection<V>>(&mut self, transform: &T) {
-        self.vertices.iter_mut().for_each(|p| {
-            *p = transform.transform(*p);
-        })
-    }
-}
 
 /// For a tetrahedron with verts (0,1,2,3), gives the clockwise winding order of each face, assuming (0,1,2) is clockwise facing out from vertex 3.
 /// Ordered so that `TETRAHEDRON_FACE_WINDING[i]` gives the face without vertex `i`.
 /// Returns invalid results if both vertices have the same depth, or if they aren't on opposite sides of CROSS_SECTION_DEPTH.
 const TETRAHEDRON_FACE_WINDING: [[usize; 3]; 4] = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2]];
 const CROSS_SECTION_DEPTH: f32 = 0.0;
-fn project_edge<V: Project>(vertex1: V, vertex2: V) -> V::Projected
+fn project_edge<V: ProjectOrthographic>(vertex1: V, vertex2: V) -> V::Projected
 where
     V::Projected: InterpolateWith,
 {
-    let depth1 = vertex1.projection_depth();
-    let depth2 = vertex2.projection_depth();
+    let depth1 = vertex1.orthographic_depth();
+    let depth2 = vertex2.orthographic_depth();
     let intersection = depth1 / (depth1 - depth2);
-    let vertex1 = vertex1.project();
-    let vertex2 = vertex2.project();
+    let vertex1 = vertex1.project_orthographic();
+    let vertex2 = vertex2.project_orthographic();
     vertex1.interpolate_with(vertex2, intersection)
 }
 
-impl<V: Project + Copy> Tetmesh<V>
+pub trait CrossSection {
+    type CrossSectioned;
+    /// Returns the cross section of this mesh. That is, the portion of the mesh that intersects with a hyperplane one dimension lower than the mesh.
+    /// Preserves the handedness (winding order) of the source mesh in the resulting mesh, so that e.g. a clockwise tetrahedron gives clockwise triangles.
+    fn cross_section(self) -> Self::CrossSectioned;
+}
+
+impl<V: ProjectOrthographic + Copy> CrossSection for TetrahedronMesh<V>
 where
     V::Projected: InterpolateWith,
 {
-    /// Returns the cross section of this mesh using `project` to map to another vector space.
-    /// `project` must perform a linear mapping to another vector space and return a "depth" value,
-    /// the returned cross section will then be the set of mapped points with depth=0.
-    /// Preserves the handedness (winding order) of the source mesh in the resulting mesh, so that a clockwise tetrahedron gives clockwise triangles.
-    pub fn cross_section(self) -> Trimesh<V::Projected> {
+    type CrossSectioned = TriangleMesh<V::Projected>;
+    fn cross_section(self) -> TriangleMesh<V::Projected> {
         // Maps edges in the old mesh to projected vertices in the new mesh, takes the edge as a tuple with the lower index first.
         let mut edge_indices: HashMap<(usize, usize), usize> = HashMap::new();
         let mut projected_vertices: Vec<V::Projected> = vec![];
@@ -150,7 +57,7 @@ where
             .into_iter()
             .flat_map(|simplex| {
                 let vertex_section_side = simplex.map(|vert_index| {
-                    self.vertices[vert_index].projection_depth() > CROSS_SECTION_DEPTH
+                    self.vertices[vert_index].orthographic_depth() > CROSS_SECTION_DEPTH
                 });
                 // One vertex on negative side, use face winding order. Takes index of the one negative-depth vertex.
                 let one_negative_case =
@@ -170,23 +77,19 @@ where
                     ]
                 };
                 let faces = match vertex_section_side {
-                    // All one side, no intersection
                     [false, false, false, false] => vec![],
                     [true, true, true, true] => vec![],
-                    // One vertex on negative side
                     [false, true, true, true] => one_negative_case(0),
                     [true, false, true, true] => one_negative_case(1),
                     [true, true, false, true] => one_negative_case(2),
                     [true, true, true, false] => one_negative_case(3),
-                    // Three vertices on negative side
                     [true, false, false, false] => three_negative_case(0),
                     [false, true, false, false] => three_negative_case(1),
                     [false, false, true, false] => three_negative_case(2),
                     [false, false, false, true] => three_negative_case(3),
-                    // Two vertices on negative side
                     [false, false, true, true] => two_negative_case(0, 1, 2, 3),
                     [true, true, false, false] => two_negative_case(3, 2, 1, 0),
-                    [true, false, true, false] => two_negative_case(1, 3, 0, 2),
+                    [true, false, true, false] => two_negative_case(3, 1, 0, 2),
                     [false, true, false, true] => two_negative_case(0, 2, 3, 1),
                     [true, false, false, true] => two_negative_case(2, 1, 3, 0),
                     [false, true, true, false] => two_negative_case(0, 3, 1, 2),
@@ -199,7 +102,7 @@ where
                     .collect::<Vec<_>>()
             })
             .collect();
-        Trimesh {
+        TriangleMesh {
             vertices: projected_vertices,
             simplexes: projected_simplexes,
         }
@@ -208,6 +111,12 @@ where
 
 #[cfg(test)]
 mod test {
+    use proptest::prelude::*;
+
+    use crate::mesh::test_util::*;
+    use crate::mesh::{Vertex2, Vertex3};
+    use crate::util::test::proptest::vec3_uniform;
+
     use super::*;
 
     const EPS: f32 = 1e-3;
@@ -233,7 +142,7 @@ mod test {
                 $(
                 #[test]
                 fn $name() {
-                    let tetmesh = Tetmesh {
+                    let tetmesh = TetrahedronMesh {
                         vertices: vec![
                             make_vertex_3d(0.0, 0.0, 1.0),
                             make_vertex_3d(2.0, 0.0, -1.0),
@@ -244,12 +153,15 @@ mod test {
                     };
                     let tetmesh = dbg!(tetmesh);
 
-                    let got = dbg!(tetmesh.cross_section());
+                    let got = dbg!(tetmesh.clone().cross_section());
 
                     assert_eq!(got.simplexes.len(), 1);
                     assert_eq!(got.vertices.len(), 3);
                     let simplex = got.simplexes[0];
-                    assert!(triangle_is_clockwise(simplex.map(|i| got.vertices[i].position)));
+                    assert_eq!(
+                        triangle_sign(simplex.map(|i| got.vertices[i].position)),
+                        tetrahedron_sign(tetmesh.simplexes[0].map(|i| tetmesh.vertices[i].position))
+                    );
                 }
                 )*
             }
@@ -258,7 +170,7 @@ mod test {
                 $(
                 #[test]
                 fn $name() {
-                    let tetmesh = Tetmesh {
+                    let tetmesh = TetrahedronMesh {
                         vertices: vec![
                             make_vertex_3d(0.0, 0.0, -1.0),
                             make_vertex_3d(2.0, 0.0, 1.0),
@@ -269,13 +181,15 @@ mod test {
                     };
                     let tetmesh = dbg!(tetmesh);
 
-                    let got = dbg!(tetmesh.cross_section());
+                    let got = dbg!(tetmesh.clone().cross_section());
 
                     assert_eq!(got.simplexes.len(), 1);
                     assert_eq!(got.vertices.len(), 3);
                     let simplex = got.simplexes[0];
-                    // Should be opposite of the one positive case because the coords are mirrored so handedness is flipped.
-                    assert!(!triangle_is_clockwise(simplex.map(|i| got.vertices[i].position)));
+                    assert_eq!(
+                        triangle_sign(simplex.map(|i| got.vertices[i].position)),
+                        tetrahedron_sign(tetmesh.simplexes[0].map(|i| tetmesh.vertices[i].position))
+                    );
                 }
                 )*
             }
@@ -283,10 +197,14 @@ mod test {
     }
 
     one_three_split_tests! {
-        v0: [0, 1, 2, 3],
-        v1: [2, 0, 1, 3],
-        v2: [1, 2, 0, 3],
-        v3: [1, 3, 2, 0],
+        v0_left: [0, 1, 2, 3],
+        v0_right: [0, 1, 3, 2],
+        v1_left: [2, 0, 1, 3],
+        v1_right: [2, 0, 3, 1],
+        v2_left: [1, 2, 0, 3],
+        v2_right: [2, 1, 0, 3],
+        v3_left: [1, 3, 2, 0],
+        v3_right: [3, 1, 2, 0],
     }
 
     macro_rules! two_positive_tests {
@@ -296,7 +214,7 @@ mod test {
                 $(
                     #[test]
                     fn $name() {
-                        let tetmesh = Tetmesh {
+                        let tetmesh = TetrahedronMesh {
                             vertices: vec![
                                 make_vertex_3d(0.0, 0.0, 1.0),
                                 make_vertex_3d(2.0, 0.0, 1.0),
@@ -306,13 +224,14 @@ mod test {
                             simplexes: vec![$tet_winding],
                         };
                         let tetmesh = dbg!(tetmesh);
+                        let tetmesh_sign = dbg!(tetrahedron_sign(tetmesh.simplexes[0].map(|i| tetmesh.vertices[i].position)));
 
                         let got = dbg!(tetmesh.cross_section());
 
                         assert_eq!(got.simplexes.len(), 2);
                         assert_eq!(got.vertices.len(), 4);
-                        assert!(triangle_is_clockwise(got.simplexes[0].map(|i| got.vertices[i].position)));
-                        assert!(triangle_is_clockwise(got.simplexes[1].map(|i| got.vertices[i].position)));
+                        assert_eq!(triangle_sign(got.simplexes[0].map(|i| got.vertices[i].position)), tetmesh_sign);
+                        assert_eq!(triangle_sign(got.simplexes[1].map(|i| got.vertices[i].position)), tetmesh_sign);
                     }
                 )*
             }
@@ -320,22 +239,45 @@ mod test {
     }
 
     two_positive_tests! {
-        v0v1: [0, 1, 2, 3],
-        v0v2: [0, 2, 1, 3],
-        v1v2: [2, 0, 1, 3],
-        v1v3: [3, 0, 2, 1],
-        v2v3: [3, 2, 1, 0],
+        v0v1_right: [0, 1, 2, 3],
+        v0v1_left: [0, 1, 3, 2],
+        v0v2_right: [0, 3, 1, 2],
+        v0v2_left: [0, 2, 1, 3],
+        v1v2_right: [2, 0, 1, 3],
+        v1v2_left: [3, 0, 1, 2],
+        v1v3_right: [3, 0, 2, 1],
+        v1v3_left: [2, 0, 3, 1],
+        v2v3_right: [3, 2, 1, 0],
+        v2v3_left: [2, 3, 1, 0],
+    }
+
+    proptest! {
+        #[test]
+        fn cross_section_3d_preserves_handedness(
+            p1 in vec3_uniform(1.0),
+            p2 in vec3_uniform(1.0),
+            p3 in vec3_uniform(1.0),
+            p4 in vec3_uniform(1.0)
+        ) {
+            let mesh = TetrahedronMesh {
+                vertices: [p1, p2, p3, p4].map(|v| Vertex3 { position: v }).to_vec(),
+                simplexes: vec![[0, 1, 2, 3]]
+            };
+
+            let section = mesh.cross_section();
+
+            for triangle in section.simplexes.iter() {
+                let triangle_sign = triangle_sign(triangle.map(|i| section.vertices[i].position));
+                let tetrahedron_sign = tetrahedron_sign([p1,p2,p3,p4]);
+
+                assert_eq!(triangle_sign, tetrahedron_sign)
+            }
+        }
     }
 
     fn make_vertex_3d(x: f32, y: f32, z: f32) -> Vertex3<glam::Vec3> {
         Vertex3 {
             position: glam::vec3(x, y, z),
         }
-    }
-
-    fn triangle_is_clockwise(simplex: [glam::Vec2; 3]) -> bool {
-        let wedge = (simplex[0] - simplex[1]).perp_dot(simplex[2] - simplex[1]);
-        dbg!(wedge);
-        wedge > 0.0
     }
 }
