@@ -18,7 +18,7 @@ pub trait Vector: Copy + Add<Self, Output = Self> + Mul<f32, Output = Self> {
 /// 4-element vector. Allows swapping out linear algebra implementations.
 pub trait Vector4: Vector {
     type Matrix4: Matrix4<Vector4 = Self>;
-    type Vector3: Vector3;
+    type Vector3: Vector3<Vector4 = Self>;
 
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self;
 
@@ -49,7 +49,8 @@ pub trait Matrix4: Mul<Self::Vector4, Output = Self::Vector4> {
 }
 
 pub trait Vector3: Vector {
-    type Vector2: Vector2;
+    type Vector2: Vector2<Vector3 = Self>;
+    type Vector4: Vector4<Vector3 = Self>;
 
     fn new(x: f32, y: f32, z: f32) -> Self;
 
@@ -61,6 +62,8 @@ pub trait Vector3: Vector {
 }
 
 pub trait Vector2: Vector {
+    type Vector3: Vector3<Vector2 = Self>;
+
     fn new(x: f32, y: f32) -> Self;
 
     fn x(self) -> f32;
@@ -148,6 +151,8 @@ pub(crate) mod test_util {
     }
     impl Vector3 for TestVec3 {
         type Vector2 = TestVec2;
+        type Vector4 = TestVec4;
+
         fn new(x: f32, y: f32, z: f32) -> Self {
             Self { x, y, z }
         }
@@ -205,6 +210,8 @@ pub(crate) mod test_util {
         }
     }
     impl Vector2 for TestVec2 {
+        type Vector3 = TestVec3;
+
         fn new(_: f32, _: f32) -> Self {
             Self
         }

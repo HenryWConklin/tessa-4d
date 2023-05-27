@@ -54,6 +54,8 @@ impl Vector for glam::Vec3 {
 }
 impl Vector3 for glam::Vec3 {
     type Vector2 = glam::Vec2;
+    type Vector4 = glam::Vec4;
+
     fn new(x: f32, y: f32, z: f32) -> Self {
         glam::vec3(x, y, z)
     }
@@ -84,6 +86,8 @@ impl Vector for glam::Vec2 {
     }
 }
 impl Vector2 for glam::Vec2 {
+    type Vector3 = glam::Vec3;
+
     fn new(x: f32, y: f32) -> Self {
         glam::vec2(x, y)
     }
