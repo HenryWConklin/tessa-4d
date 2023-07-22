@@ -4,10 +4,6 @@ pub trait Transform<T> {
     /// Applies this transformation to a vector representing a point.
     fn transform(&self, operand: T) -> T;
 }
-pub trait TransformDirection<T> {
-    /// Applies this transformation to a unit direction vector, e.g. normal or tangent vectors.
-    fn transform_direction(&self, operand: T) -> T;
-}
 
 pub trait Compose<Other> {
     type Composed;

@@ -2,7 +2,13 @@
 
 //! Implementations of traits for Glam structs.
 
-use super::traits::{Matrix4, Vector, Vector2, Vector3, Vector4};
+use glam::{Affine2, Affine3A, Mat2, Mat3};
+
+use crate::{
+    linear_algebra::{Matrix4, Vector, Vector2, Vector3, Vector4},
+    mesh::{Vertex2, Vertex3},
+    transform::traits::Transform,
+};
 
 impl Matrix4 for glam::Mat4 {
     type Vector4 = glam::Vec4;
@@ -54,6 +60,8 @@ impl Vector for glam::Vec3 {
 }
 impl Vector3 for glam::Vec3 {
     type Vector2 = glam::Vec2;
+    type Vector4 = glam::Vec4;
+
     fn new(x: f32, y: f32, z: f32) -> Self {
         glam::vec3(x, y, z)
     }
@@ -84,6 +92,8 @@ impl Vector for glam::Vec2 {
     }
 }
 impl Vector2 for glam::Vec2 {
+    type Vector3 = glam::Vec3;
+
     fn new(x: f32, y: f32) -> Self {
         glam::vec2(x, y)
     }
@@ -92,5 +102,33 @@ impl Vector2 for glam::Vec2 {
     }
     fn y(self) -> f32 {
         self.y
+    }
+}
+
+impl Transform<glam::Vec3> for Mat3 {
+    fn transform(&self, operand: glam::Vec3) -> glam::Vec3 {
+        self.mul_vec3(operand)
+    }
+}
+
+impl Transform<Vertex3<glam::Vec3>> for Affine3A {
+    fn transform(&self, operand: Vertex3<glam::Vec3>) -> Vertex3<glam::Vec3> {
+        Vertex3 {
+            position: self.transform_point3(operand.position),
+        }
+    }
+}
+
+impl Transform<glam::Vec2> for Mat2 {
+    fn transform(&self, operand: glam::Vec2) -> glam::Vec2 {
+        self.mul_vec2(operand)
+    }
+}
+
+impl Transform<Vertex2<glam::Vec2>> for Affine2 {
+    fn transform(&self, operand: Vertex2<glam::Vec2>) -> Vertex2<glam::Vec2> {
+        Vertex2 {
+            position: self.transform_point2(operand.position),
+        }
     }
 }

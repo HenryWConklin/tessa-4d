@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3a482a1679863067617221e487f6734d9edf84e9294cfb37a056983c9beeea72 # shrinks to rotor = Rotor4 { c: 0.5520642, bivec: Bivec4 { xy: 0.0, xz: 0.0, xw: -0.8338016, yz: 0.0, wy: 0.0, zw: 0.0 }, xyzw: 0.0 }, dir = Vec3(-0.2557779, 0.0, 0.0)

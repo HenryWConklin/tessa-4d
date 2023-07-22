@@ -2,11 +2,10 @@ use std::{
     f32::consts::{FRAC_PI_2, PI},
     ops::{Add, Mul, Neg, Sub},
 };
-
-use crate::linear_algebra::traits::{Matrix4, Vector4};
-
-use super::traits::{Compose, InterpolateWith, Inverse, Transform, TransformDirection};
 use thiserror::Error;
+
+use super::traits::{Compose, InterpolateWith, Inverse, Transform};
+use crate::linear_algebra::{Matrix4, Vector4};
 
 const EPSILON: f32 = 1e-3;
 
@@ -246,11 +245,6 @@ impl<V: Vector4> Transform<V> for Rotor4 {
     fn transform(&self, operand: V) -> V {
         let matrix: V::Matrix4 = self.into_mat4();
         matrix * operand
-    }
-}
-impl<V: Vector4> TransformDirection<V> for Rotor4 {
-    fn transform_direction(&self, operand: V) -> V {
-        self.transform(operand)
     }
 }
 
@@ -1927,6 +1921,9 @@ mod test {
 
 #[cfg(test)]
 pub(crate) mod test_util {
+    use proptest::strategy::{BoxedStrategy, Strategy};
+    use std::f32::consts::TAU;
+
     use super::*;
 
     pub fn vector_approx_equal<V: Vector4>(a: V, b: V) -> bool {
@@ -1973,5 +1970,36 @@ pub(crate) mod test_util {
 
     pub fn random_vector<R: rand::Rng, V: Vector4>(gen: &mut R) -> V {
         V::new(gen.gen(), gen.gen(), gen.gen(), gen.gen())
+    }
+
+    pub fn arbitrary_bivec4(range: f32) -> BoxedStrategy<Bivec4> {
+        arbitrary_bivec4_between(Bivec4::ONE.scaled(-range), Bivec4::ONE.scaled(range))
+    }
+
+    pub fn arbitrary_bivec4_between(min: Bivec4, max: Bivec4) -> BoxedStrategy<Bivec4> {
+        (
+            min.xy..max.xy,
+            min.xz..max.xz,
+            min.xw..max.xw,
+            min.yz..max.yz,
+            min.wy..max.wy,
+            min.zw..max.zw,
+        )
+            .prop_map(|(xy, xz, xw, yz, wy, zw)| Bivec4 {
+                xy,
+                xz,
+                xw,
+                yz,
+                wy,
+                zw,
+            })
+            .boxed()
+    }
+
+    /// Uniform random rotor4 over all valid Rotor4s (or at least close enough).
+    pub fn arbitrary_rotor4() -> BoxedStrategy<Rotor4> {
+        arbitrary_bivec4(TAU)
+            .prop_map(Rotor4::from_bivec_angles)
+            .boxed()
     }
 }

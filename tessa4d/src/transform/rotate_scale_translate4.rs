@@ -1,16 +1,17 @@
 use crate::{
-    linear_algebra::traits::{Matrix4, Vector4},
+    linear_algebra::{Matrix4, Vector4},
     util::lerp,
 };
 
 use super::{
     rotor4::Rotor4,
-    traits::{Compose, InterpolateWith, Inverse, Transform, TransformDirection},
+    traits::{Compose, InterpolateWith, Inverse, Transform},
 };
 
 /// Transform with rotation, uniform scale, and translation.
 /// Applies rotation, then scale, then translation.
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct RotateScaleTranslate4<V> {
     pub rotation: Rotor4,
     pub scale: f32,
@@ -75,12 +76,6 @@ impl<V: Vector4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> 
 impl<V: Vector4> Transform<V> for RotateScaleTranslate4<V> {
     fn transform(&self, operand: V) -> V {
         self.rotation.transform(operand) * self.scale + self.translation
-    }
-}
-
-impl<V: Vector4> TransformDirection<V> for RotateScaleTranslate4<V> {
-    fn transform_direction(&self, operand: V) -> V {
-        self.rotation.transform(operand)
     }
 }
 
@@ -212,26 +207,6 @@ mod test {
 
         assert!(got_translated_after.abs_diff_eq(expected, EPS));
         assert!(got_translated.abs_diff_eq(expected, EPS));
-    }
-
-    #[test]
-    fn transform_direction_only_rotates() {
-        let rotor = Rotor4::from_bivec_angles(Bivec4 {
-            xy: PI / 2.0,
-            ..Bivec4::ZERO
-        });
-        let transform = RotateScaleTranslate4 {
-            rotation: rotor,
-            scale: 2.0,
-            translation: glam::vec4(1.0, 2.0, 3.0, 4.0),
-        };
-        let vector = glam::vec4(5.0, 6.0, 7.0, 8.0);
-        let expected = glam::vec4(-6.0, 5.0, 7.0, 8.0);
-        dbg!(expected);
-
-        let got = dbg!(transform.transform_direction(vector));
-
-        assert!(got.abs_diff_eq(expected, EPS));
     }
 
     #[test]
