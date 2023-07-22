@@ -4,7 +4,7 @@ use std::f32::consts::TAU;
 
 use self::ops::{Extrude, LiftOrthographic};
 use crate::{
-    linear_algebra::traits::{Vector2, Vector3, Vector4},
+    linear_algebra::{Vector2, Vector3, Vector4},
     transform::{
         rotate_scale_translate4::RotateScaleTranslate4,
         traits::{InterpolateWith, Transform},
@@ -79,11 +79,16 @@ impl<V: Vector4> InterpolateWith for Vertex4<V> {
 
 /// Generic mesh made of N-simplexes. e.g. a 3-simplex is a triangle, a 4-simplex is a tetrahedron.
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "bevy",
+    derive(bevy::reflect::TypeUuid),
+    uuid = "746469f2-d902-469a-9af2-534a7ee4112c"
+)]
 pub struct SimplexMesh<V, const N: usize> {
     /// Unique vertices in the mesh.
     /// Uniqueness is not required, but it is more efficient.
     pub vertices: Vec<V>,
-    /// Indices into the `coordinates` vec representing the vertices of each N-simplex in the mesh.
+    /// Indices into the `vertices` vec representing the vertices of each N-simplex in the mesh.
     pub simplexes: Vec<[usize; N]>,
 }
 
@@ -333,6 +338,7 @@ mod test {
     use super::*;
     use crate::transform::rotate_scale_translate4::RotateScaleTranslate4;
     use crate::transform::rotor4::test_util::arbitrary_rotor4;
+    use crate::transform::rotor4::{Bivec4, Rotor4};
     use crate::util::test::proptest::vec3_uniform;
     use glam::{vec2, Vec3};
     use proptest::proptest;

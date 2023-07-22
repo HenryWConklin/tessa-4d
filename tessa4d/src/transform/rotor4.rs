@@ -5,7 +5,7 @@ use std::{
 use thiserror::Error;
 
 use super::traits::{Compose, InterpolateWith, Inverse, Transform};
-use crate::linear_algebra::traits::{Matrix4, Vector4};
+use crate::linear_algebra::{Matrix4, Vector4};
 
 const EPSILON: f32 = 1e-3;
 

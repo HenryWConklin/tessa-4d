@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tessa4d = { path = "../tessa4d" }
+tessa4d = { path = "../tessa4d", features = ["bevy"] }
 bevy = { version = "0.10.1", features = ["dynamic_linking"] }
 
 # Enable a small amount of optimization in debug mode

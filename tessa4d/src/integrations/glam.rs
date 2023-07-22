@@ -5,11 +5,10 @@
 use glam::{Affine2, Affine3A, Mat2, Mat3};
 
 use crate::{
+    linear_algebra::{Matrix4, Vector, Vector2, Vector3, Vector4},
     mesh::{Vertex2, Vertex3},
     transform::traits::Transform,
 };
-
-use super::traits::{Matrix4, Vector, Vector2, Vector3, Vector4};
 
 impl Matrix4 for glam::Mat4 {
     type Vector4 = glam::Vec4;

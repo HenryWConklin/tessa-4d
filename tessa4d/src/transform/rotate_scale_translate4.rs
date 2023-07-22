@@ -1,5 +1,5 @@
 use crate::{
-    linear_algebra::traits::{Matrix4, Vector4},
+    linear_algebra::{Matrix4, Vector4},
     util::lerp,
 };
 
@@ -11,6 +11,7 @@ use super::{
 /// Transform with rotation, uniform scale, and translation.
 /// Applies rotation, then scale, then translation.
 #[derive(Copy, Clone, Debug)]
+#[cfg_attr(feature = "bevy", derive(bevy::prelude::Component))]
 pub struct RotateScaleTranslate4<V> {
     pub rotation: Rotor4,
     pub scale: f32,
