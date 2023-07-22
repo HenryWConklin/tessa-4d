@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        docker { image 'rust:1.68.1-slim' }
+        dockerfile { filename 'Dockerfile.jenkins' }
     }
     stages {
         stage('Test') {
