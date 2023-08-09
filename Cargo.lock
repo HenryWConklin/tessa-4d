@@ -2920,7 +2920,6 @@ dependencies = [
  "bevy",
  "glam",
  "proptest",
- "rand",
  "thiserror",
 ]
 

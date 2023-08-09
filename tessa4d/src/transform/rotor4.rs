@@ -463,8 +463,18 @@ impl Bivec4 {
         }
     }
 
+    /// Returns the scalar component of the dot product of self and other.
+    pub fn dot(&self, other: Bivec4) -> f32 {
+        -(self.xy * other.xy
+            + self.xz * other.xz
+            + self.xw * other.xw
+            + self.yz * other.yz
+            + self.wy * other.wy
+            + self.zw * other.zw)
+    }
+
     /// Returns the quadvector component of the wedge product of self and other.
-    fn wedge(&self, other: Bivec4) -> f32 {
+    pub fn wedge(&self, other: Bivec4) -> f32 {
         self.xy * other.zw
             + self.xz * other.wy
             + self.xw * other.yz
@@ -473,12 +483,14 @@ impl Bivec4 {
             + self.zw * other.xy
     }
 
-    /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, B1^2, B2^2 are scalars.
+    /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, and B1^2, B2^2 are scalars.
     pub fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
-        let squared = self.square();
-        let det = (squared.c * squared.c - squared.xyzw * squared.xyzw).sqrt();
-        if approx_equal(det.abs(), 0.0) {
-            (
+        let mag = self.max_component_magnitude();
+        let bivec = self.scaled(1.0 / mag);
+        let squared = bivec.square();
+        let det = ((squared.c + squared.xyzw) * (squared.c - squared.xyzw)).sqrt();
+        if approx_equal(squared.c.abs(), squared.xyzw.abs()) {
+            return (
                 Bivec4 {
                     xy: self.xy,
                     xz: self.xz,
@@ -493,22 +505,24 @@ impl Bivec4 {
                     ..Self::ZERO
                 }
                 .force_simple(),
-            )
-        } else {
-            let factor1 = ScalarPlusQuadvec4 {
-                c: (-squared.c + det),
-                xyzw: squared.xyzw,
-            };
-            let factor2 = ScalarPlusQuadvec4 {
-                c: (squared.c + det),
-                xyzw: -squared.xyzw,
-            };
-            let scale = 1.0 / (2.0 * det);
-            (
-                (*self * factor1).scaled(scale).force_simple(),
-                (*self * factor2).scaled(scale).force_simple(),
-            )
+            );
         }
+
+        let factor1 = ScalarPlusQuadvec4 {
+            c: (-squared.c + det),
+            xyzw: squared.xyzw,
+        };
+        let factor2 = ScalarPlusQuadvec4 {
+            c: (squared.c + det),
+            xyzw: -squared.xyzw,
+        };
+        let scale = 1.0 / (2.0 * det);
+        let factor1 = (bivec * factor1).scaled(scale);
+        let factor2 = (bivec * factor2).scaled(scale);
+        (
+            factor1.force_simple().scaled(mag),
+            factor2.force_simple().scaled(mag),
+        )
     }
 
     /// For vectors that are mathematically guranteed to be simple, but might not be due to float precision.
@@ -526,14 +540,19 @@ impl Bivec4 {
     /// Returns the square of the bivector, as a [ScalarPlusQuadvec4].
     fn square(&self) -> ScalarPlusQuadvec4 {
         ScalarPlusQuadvec4 {
-            c: -(self.xy * self.xy
-                + self.xz * self.xz
-                + self.xw * self.xw
-                + self.yz * self.yz
-                + self.wy * self.wy
-                + self.zw * self.zw),
+            c: self.dot(*self),
             xyzw: 2.0 * (self.xy * self.zw + self.xz * self.wy + self.xw * self.yz),
         }
+    }
+
+    fn max_component_magnitude(&self) -> f32 {
+        self.xy
+            .abs()
+            .max(self.xz.abs())
+            .max(self.xw.abs())
+            .max(self.yz.abs())
+            .max(self.wy.abs())
+            .max(self.zw.abs())
     }
 }
 
@@ -638,7 +657,6 @@ impl TryFrom<Bivec4> for SimpleBivec4 {
     type Error = RotorError;
     fn try_from(value: Bivec4) -> Result<Self, Self::Error> {
         let square = value.square();
-        // This check can fail for bivectors with large magnitude, but works up to ~100 which is fine for rotations.
         if approx_equal(square.xyzw, 0.0) {
             Ok(SimpleBivec4 { bivec: value })
         } else {
@@ -704,7 +722,9 @@ mod test {
     //! Why so many tests? Because this module is loaded with arcane bullshit and I'll be damned if I'm figuring it all out again.
     use std::f32::consts::{FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, PI, SQRT_2};
 
-    use rand::SeedableRng;
+    use proptest::proptest;
+
+    use crate::util::test::proptest::vec4_uniform;
 
     use super::test_util::*;
     use super::*;
@@ -943,158 +963,6 @@ mod test {
     }
 
     #[test]
-    fn test_rotor_compose_identity_is_same_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            dbg!(rotor);
-
-            let left = dbg!(Rotor4::IDENTITY.compose(rotor));
-            let right = dbg!(rotor.compose(Rotor4::IDENTITY));
-
-            assert!(rotor_approx_equal(left, rotor));
-            assert!(rotor_approx_equal(right, rotor));
-        }
-    }
-
-    #[test]
-    fn test_rotor_composed_transform_same_as_one_then_other_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor1 = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            let rotor2 = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            let vector = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - RANGE / 2.0;
-            dbg!(rotor1);
-            dbg!(rotor2);
-            dbg!(vector);
-
-            let composed = dbg!(rotor1.compose(rotor2));
-            let vector1 = dbg!(rotor1.transform(vector));
-            let vector2 = dbg!(rotor2.transform(vector1));
-            let vector_composed = dbg!(composed.transform(vector));
-
-            dbg!(vector2 - vector_composed);
-            assert!(vector_approx_equal(vector2, vector_composed));
-            assert!(!vector_approx_equal(vector2, vector));
-        }
-    }
-
-    #[test]
-    fn test_rotor_compose_inverse_is_identity_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            dbg!(rotor);
-
-            let left = dbg!(rotor.compose(rotor.inverse()));
-            let right = dbg!(rotor.inverse().compose(rotor));
-
-            assert!(rotor_approx_equal(left, Rotor4::IDENTITY));
-            assert!(rotor_approx_equal(right, Rotor4::IDENTITY));
-        }
-    }
-
-    #[test]
-    fn test_rotor_compose_stability_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        const COMPOSE_ITERS: usize = 1000;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-
-            let mut compose_rotor = rotor;
-            for _ in 0..COMPOSE_ITERS {
-                compose_rotor = compose_rotor.compose(rotor);
-            }
-            for _ in 0..COMPOSE_ITERS {
-                compose_rotor = compose_rotor.compose(rotor.inverse());
-            }
-
-            dbg!(rotor);
-            dbg!(compose_rotor);
-            assert!(rotor_approx_equal(compose_rotor, rotor));
-        }
-    }
-
-    #[test]
-    fn test_rotor_transform_stability_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        const TRANSFORM_ITERS: usize = 100;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            let vector = random_vector::<_, glam::Vec4>(&mut gen);
-
-            let mut transform_vec = vector;
-            for _ in 0..TRANSFORM_ITERS {
-                transform_vec = rotor.transform(transform_vec);
-            }
-            for _ in 0..TRANSFORM_ITERS {
-                transform_vec = rotor.inverse().transform(transform_vec);
-            }
-
-            dbg!(rotor);
-            dbg!(vector);
-            dbg!(transform_vec);
-            assert!(vector_approx_equal(transform_vec, vector));
-        }
-    }
-
-    #[test]
-    fn test_rotor_compose_normalization_stability_fuzz_test() {
-        // Currently takes around 30,000 iterations to approach 1e-3 error without any normalization.
-        // Set the EPS lower to catch issues more quickly.
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 1000;
-        const RANGE: f32 = 4.0 * PI;
-        const EPS: f32 = 1e-5;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        let mut composed_rotor = Rotor4::IDENTITY;
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0),
-            );
-            composed_rotor = composed_rotor.compose(rotor);
-            dbg!(composed_rotor.normalization_error());
-
-            let error = composed_rotor.normalization_error();
-            assert!(error.c.abs() - 1.0 < EPS);
-            assert!(error.xyzw.abs() < EPS);
-        }
-    }
-
-    #[test]
     fn test_rotor_log_double() {
         let rotor = Rotor4 {
             c: 0.5,
@@ -1130,79 +998,6 @@ mod test {
     }
 
     #[test]
-    fn test_rotor_log_exp_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let bivector =
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
-            let rotor = dbg!(Rotor4::from_bivec_angles(bivector));
-            dbg!(rotor);
-
-            let log = dbg!(rotor.log());
-            let got = dbg!(log.exp());
-
-            let minus_got = Rotor4 {
-                c: -got.c,
-                bivec: -got.bivec,
-                xyzw: -got.xyzw,
-            };
-            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
-        }
-    }
-
-    #[test]
-    fn test_rotor_between_log_exp_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 2.0;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let from: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
-            let to: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
-            dbg!(from);
-            dbg!(to);
-
-            let rotor = dbg!(Rotor4::between(from, to));
-            let log = dbg!(rotor.log());
-            let got = dbg!(log.exp());
-
-            let minus_got = Rotor4 {
-                c: -got.c,
-                bivec: -got.bivec,
-                xyzw: -got.xyzw,
-            };
-            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
-        }
-    }
-
-    #[test]
-    fn test_rotor_between_with_half_pow_transforms_between_fuzz_test() {
-        const SEED: [u8; 32] = [1; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 6.0;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let from: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
-            let to: glam::Vec4 = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
-            dbg!(from);
-            dbg!(to);
-
-            let rotor = dbg!(Rotor4::between(from, to));
-            let half_rotor = dbg!(rotor.pow(0.5));
-            let got = dbg!(half_rotor.transform(from));
-
-            dbg!((got.dot(to) / (got.length() * to.length())).acos());
-            assert!(vector_approx_equal(got.normalize(), to.normalize()))
-        }
-    }
-
-    #[test]
     fn test_rotor_log_simple_scaled() {
         let val = RotorLog4::Simple {
             angle: PI / 4.0,
@@ -1231,49 +1026,6 @@ mod test {
         let got = dbg!(val.scaled(2.0));
 
         assert!(rotor_log_approx_equal(got, expected));
-    }
-
-    #[test]
-    fn test_rotor_to_matrix_composed_with_inverse_is_identity_fuzz_test() {
-        const SEED: [u8; 32] = [2; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = dbg!(Rotor4::from_bivec_angles(
-                random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0)
-            ));
-            dbg!(rotor);
-
-            let matrix: glam::Mat4 = dbg!(rotor.into_mat4());
-            let inv_matrix: glam::Mat4 = dbg!(rotor.inverse().into_mat4());
-            let prod = dbg!(matrix * inv_matrix);
-
-            assert!(prod.abs_diff_eq(glam::Mat4::IDENTITY, EPSILON));
-        }
-    }
-
-    #[test]
-    fn test_rotor_transform_preserves_scale_fuzz_test() {
-        const SEED: [u8; 32] = [2; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 4.0;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let rotor = dbg!(Rotor4::from_bivec_angles(random_bivector(&mut gen)));
-            let vec = random_vector::<_, glam::Vec4>(&mut gen) * RANGE - (RANGE / 2.0);
-            dbg!(rotor);
-            dbg!(vec);
-
-            let got = dbg!(rotor.pow(0.5).transform(vec));
-
-            let angle = (vec.dot(got) / (vec.length() * got.length())).acos();
-            dbg!(angle);
-            let length_diff = dbg!(vec.length() - got.length());
-            assert!(approx_equal(length_diff, 0.0));
-        }
     }
 
     #[test]
@@ -1615,36 +1367,23 @@ mod test {
     }
 
     #[test]
-    fn test_bivec_factor_into_simple_orthogonal_fuzz_test() {
-        // This test fails with a RANGE of ~100 because of precision, current range is good enough for rotations.
-        const SEED: [u8; 32] = [2; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 8.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let val = random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
-            dbg!(val);
+    fn test_bivec_factor_into_simple_orthogonal_almost_isoclinic() {
+        // This case causes some problems with precision. Something about being close to the isoclinic
+        // edge case and relatively high magnitude.
+        let val = Bivec4 {
+            xy: 8.607001,
+            xz: 16.823442,
+            xw: 9.637169,
+            yz: -9.217691,
+            wy: -18.447247,
+            zw: -8.835885,
+        };
+        dbg!(val);
 
-            let got = dbg!(val.factor_into_simple_orthogonal());
+        let got = dbg!(val.factor_into_simple_orthogonal());
 
-            let bivec1 = got.0.bivec;
-            let bivec2 = got.1.bivec;
-            assert!(bivec_approx_equal(bivec1 + bivec2, val));
-            let dot = dbg!(
-                bivec1.xy * bivec2.xy
-                    + bivec1.xz * bivec2.xz
-                    + bivec1.xw * bivec2.xw
-                    + bivec1.yz * bivec2.yz
-                    + bivec1.wy * bivec2.wy
-                    + bivec1.zw * bivec2.zw
-            );
-            // Technically also need to check that bivector component of product is 0, but it's like 24 terms and I'm not writing that out.
-            assert!(approx_equal(
-                dot / (bivec1.square().c.abs().sqrt() * bivec2.square().c.abs().sqrt()),
-                0.0
-            ));
-        }
+        assert!(bivec_approx_equal(got.0 + got.1, val));
+        assert!(bivec_approx_orthogonal(got.0.into(), got.1.into()));
     }
 
     #[test]
@@ -1667,25 +1406,6 @@ mod test {
         let got = dbg!(val.exp());
 
         assert!(rotor_approx_equal(got, expected));
-    }
-
-    #[test]
-    fn test_bivec_exp_log_exp_fuzz_test() {
-        const SEED: [u8; 32] = [2; 32];
-        const FUZZ_ITERS: usize = 100;
-        const RANGE: f32 = 2.0 * PI;
-        let mut gen = rand::rngs::StdRng::from_seed(SEED);
-        for i in 0..FUZZ_ITERS {
-            dbg!(i);
-            let bivec = random_bivector(&mut gen).scaled(RANGE) - Bivec4::ONE.scaled(RANGE / 2.0);
-            dbg!(bivec);
-
-            let exp = dbg!(bivec.exp()).normalized();
-            let log_exp = dbg!(exp.log());
-            let exp_log_exp = dbg!(log_exp.exp());
-
-            assert!(rotor_approx_equal(exp_log_exp, exp));
-        }
     }
 
     #[test]
@@ -1914,6 +1634,158 @@ mod test {
         assert!(bivec_approx_equal(result2, expected));
     }
 
+    proptest! {
+        #[test]
+        fn test_rotor_compose_identity_is_same_fuzz_test(rotor in arbitrary_rotor4()) {
+            let left = dbg!(Rotor4::IDENTITY.compose(rotor));
+            let right = dbg!(rotor.compose(Rotor4::IDENTITY));
+
+            assert!(rotor_approx_equal(left, rotor));
+            assert!(rotor_approx_equal(right, rotor));
+        }
+
+        #[test]
+        fn test_rotor_composed_transform_same_as_one_then_other_fuzz_test(rotor1 in arbitrary_rotor4(), rotor2 in arbitrary_rotor4(), vector in vec4_uniform(PI * 4.0)) {
+            let composed = dbg!(rotor1.compose(rotor2));
+            let vector1 = dbg!(rotor1.transform(vector));
+            let vector2 = dbg!(rotor2.transform(vector1));
+            let vector_composed = dbg!(composed.transform(vector));
+
+            dbg!(vector2 - vector_composed);
+            assert!(vector_approx_equal(vector2, vector_composed));
+            assert!(!vector_approx_equal(vector2, vector));
+        }
+        #[test]
+        fn test_rotor_compose_inverse_is_identity_fuzz_test(rotor in arbitrary_rotor4()) {
+                let left = dbg!(rotor.compose(rotor.inverse()));
+                let right = dbg!(rotor.inverse().compose(rotor));
+
+                assert!(rotor_approx_equal(left, Rotor4::IDENTITY));
+                assert!(rotor_approx_equal(right, Rotor4::IDENTITY));
+        }
+
+        #[test]
+        fn test_rotor_compose_stability_fuzz_test(rotor in arbitrary_rotor4()) {
+            const COMPOSE_ITERS: usize = 1000;
+            let mut compose_rotor = rotor;
+            for _ in 0..COMPOSE_ITERS {
+                compose_rotor = compose_rotor.compose(rotor);
+            }
+            for _ in 0..COMPOSE_ITERS {
+                compose_rotor = compose_rotor.compose(rotor.inverse());
+            }
+
+            assert!(rotor_approx_equal(compose_rotor, rotor));
+        }
+
+        #[test]
+        fn test_rotor_transform_stability_fuzz_test(rotor in arbitrary_rotor4(), vector in vec4_uniform(1.0)) {
+            const TRANSFORM_ITERS: usize = 100;
+            let mut transform_vec = vector;
+            for _ in 0..TRANSFORM_ITERS {
+                transform_vec = rotor.transform(transform_vec);
+            }
+            for _ in 0..TRANSFORM_ITERS {
+                transform_vec = rotor.inverse().transform(transform_vec);
+            }
+
+            assert!(vector_approx_equal(transform_vec, vector));
+        }
+
+        #[test]
+        fn test_rotor_compose_normalization_stability_fuzz_test(rotor in arbitrary_rotor4()) {
+            // Currently takes around 30,000 iterations to approach 1e-3 error without any normalization.
+            // Set the EPS lower to catch issues more quickly.
+            const COMPOSE_ITERS: usize = 5000;
+            const EPS:f32 = 1e-5;
+            let mut composed_rotor = Rotor4::IDENTITY;
+
+            for _ in 0..COMPOSE_ITERS {
+                composed_rotor = composed_rotor.compose(rotor);
+            }
+
+            let error = composed_rotor.normalization_error();
+            assert!(error.c.abs() - 1.0 < EPS);
+            assert!(error.xyzw.abs() < EPS);
+        }
+        #[test]
+        fn test_rotor_log_exp_fuzz_test(rotor in arbitrary_rotor4()) {
+            let log = dbg!(rotor.log());
+            let got = dbg!(log.exp());
+
+            let minus_got = Rotor4 {
+                c: -got.c,
+                bivec: -got.bivec,
+                xyzw: -got.xyzw,
+            };
+            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
+        }
+
+        #[test]
+        fn test_rotor_between_log_exp_fuzz_test(from in vec4_uniform(2.0), to in vec4_uniform(2.0)) {
+            let rotor = dbg!(Rotor4::between(from, to));
+            let log = dbg!(rotor.log());
+            let got = dbg!(log.exp());
+
+            let minus_got = Rotor4 {
+                c: -got.c,
+                bivec: -got.bivec,
+                xyzw: -got.xyzw,
+            };
+            assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
+        }
+
+        #[test]
+        fn test_rotor_between_with_half_pow_transforms_between_fuzz_test(from in vec4_uniform(2.0), to in vec4_uniform(2.0)) {
+            let rotor = dbg!(Rotor4::between(from, to));
+            let half_rotor = dbg!(rotor.pow(0.5));
+            let got = dbg!(half_rotor.transform(from));
+
+            dbg!((got.dot(to) / (got.length() * to.length())).acos());
+            assert!(vector_approx_equal(got.normalize(), to.normalize()))
+        }
+
+        #[test]
+        fn test_rotor_to_matrix_composed_with_inverse_is_identity_fuzz_test(rotor in arbitrary_rotor4()) {
+                let matrix: glam::Mat4 = dbg!(rotor.into_mat4());
+                let inv_matrix: glam::Mat4 = dbg!(rotor.inverse().into_mat4());
+                let prod = dbg!(matrix * inv_matrix);
+
+                assert!(prod.abs_diff_eq(glam::Mat4::IDENTITY, EPSILON));
+        }
+
+        #[test]
+        fn test_rotor_transform_preserves_scale_fuzz_test(rotor in arbitrary_rotor4(), vec in vec4_uniform(4.0)) {
+            let got = dbg!(rotor.pow(0.5).transform(vec));
+
+            let angle = (vec.dot(got) / (vec.length() * got.length())).acos();
+            dbg!(angle);
+            let length_diff = dbg!(vec.length() - got.length());
+            assert!(approx_equal(length_diff, 0.0));
+        }
+
+        #[test]
+        fn test_bivec_factor_into_simple_orthogonal_fuzz_test(val in arbitrary_bivec4(32.0 * PI)) {
+            let val = dbg!(val);
+
+            let got = dbg!(val.factor_into_simple_orthogonal());
+
+            let bivec1 = got.0.bivec;
+            let bivec2 = got.1.bivec;
+            assert!(bivec_approx_equal(bivec1 + bivec2, val));
+            assert!(bivec_approx_orthogonal(bivec1, bivec2))
+        }
+
+        #[test]
+        fn test_bivec_exp_log_exp_fuzz_test(bivec in arbitrary_bivec4(2.0 * PI)) {
+                let exp = dbg!(bivec.exp()).normalized();
+                let log_exp = dbg!(exp.log());
+                let exp_log_exp = dbg!(log_exp.exp());
+
+                assert!(rotor_approx_equal(exp_log_exp, exp));
+        }
+    }
+
     fn scalar_plus_quadvec_approx_equal(a: ScalarPlusQuadvec4, b: ScalarPlusQuadvec4) -> bool {
         approx_equal(a.c, b.c) && approx_equal(a.xyzw, b.xyzw)
     }
@@ -1952,24 +1824,16 @@ pub(crate) mod test_util {
             && approx_equal(a.zw, b.zw)
     }
 
+    pub fn bivec_approx_orthogonal(a: Bivec4, b: Bivec4) -> bool {
+        let mag = a
+            .max_component_magnitude()
+            .max(b.max_component_magnitude())
+            .recip();
+        approx_equal(a.scaled(mag).dot(b.scaled(mag)), 0.0)
+    }
+
     pub fn simple_bivec_approx_equal(a: SimpleBivec4, b: SimpleBivec4) -> bool {
         bivec_approx_equal(a.bivec, b.bivec)
-    }
-
-    /// Generates a random bivector where each component is in [0, 1).
-    pub fn random_bivector<R: rand::Rng>(gen: &mut R) -> Bivec4 {
-        Bivec4 {
-            xy: gen.gen(),
-            xz: gen.gen(),
-            xw: gen.gen(),
-            yz: gen.gen(),
-            wy: gen.gen(),
-            zw: gen.gen(),
-        }
-    }
-
-    pub fn random_vector<R: rand::Rng, V: Vector4>(gen: &mut R) -> V {
-        V::new(gen.gen(), gen.gen(), gen.gen(), gen.gen())
     }
 
     pub fn arbitrary_bivec4(range: f32) -> BoxedStrategy<Bivec4> {
