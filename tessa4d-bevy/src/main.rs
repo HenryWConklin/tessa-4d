@@ -188,10 +188,9 @@ fn main() {
                 ..Default::default()
             },
         }))
-        .add_plugin(WireframePlugin)
+        .add_plugins(WireframePlugin)
         .add_asset::<TetrahedronMesh4D>()
-        .add_startup_system(setup)
-        .add_system(tesseract_crossection)
-        .add_system(tesseract_rotate)
+        .add_systems(Startup, setup)
+        .add_systems(Update, (tesseract_crossection, tesseract_rotate))
         .run();
 }

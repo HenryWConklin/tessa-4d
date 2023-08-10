@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 tessa4d = { path = "../tessa4d", features = ["bevy"] }
-bevy = { version = "0.10.1", features = ["dynamic_linking"] }
+bevy = { version = "^0.11.0", features = ["dynamic_linking"] }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

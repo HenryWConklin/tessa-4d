@@ -13,6 +13,10 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(
+    feature = "bevy",
+    derive(bevy::reflect::Reflect),
+)]
 pub struct Vertex2<V: Vector2> {
     pub position: V,
 }
@@ -32,6 +36,10 @@ impl<V: Vector2> InterpolateWith for Vertex2<V> {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(
+    feature = "bevy",
+    derive(bevy::reflect::Reflect),
+)]
 pub struct Vertex3<V: Vector3> {
     pub position: V,
 }
@@ -51,6 +59,10 @@ impl<V: Vector3> InterpolateWith for Vertex3<V> {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(
+    feature = "bevy",
+    derive(bevy::reflect::Reflect),
+)]
 pub struct Vertex4<V: Vector4> {
     pub position: V,
 }
@@ -81,6 +93,7 @@ impl<V: Vector4> InterpolateWith for Vertex4<V> {
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "bevy",
+    derive(bevy::reflect::Reflect),
     derive(bevy::reflect::TypeUuid),
     uuid = "746469f2-d902-469a-9af2-534a7ee4112c"
 )]
