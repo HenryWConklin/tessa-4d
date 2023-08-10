@@ -1,4 +1,4 @@
-///! Traits for projecting and "unprojecting" vertices between dimensions. Used to implement other operations while being generic across the number of dimensions in the mesh.
+//! Traits for projecting and "unprojecting" vertices between dimensions. Used to implement other operations while being generic across the number of dimensions in the mesh.
 use crate::{
     linear_algebra::{Vector2, Vector3, Vector4},
     mesh::{SimplexMesh, Vertex2, Vertex3, Vertex4},
