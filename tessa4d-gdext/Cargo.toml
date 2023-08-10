@@ -1,0 +1,11 @@
+[package]
+name = "tessa4d-gdext"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tessa4d = { path = "../tessa4d", features = ["godot4"] }
+godot = { git = "https://github.com/godot-rust/gdext", rev = "63fdd6b1b741cdaec82146aa2c5006708e623ce2" }

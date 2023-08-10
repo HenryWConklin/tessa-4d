@@ -1,0 +1,6 @@
+use godot::prelude::*;
+
+struct Tessa4dExtension;
+
+#[gdextension]
+unsafe impl ExtensionLibrary for Tessa4dExtension {}
