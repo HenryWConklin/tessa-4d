@@ -45,7 +45,7 @@ pub trait Matrix4: Mul<Self::Vector4, Output = Self::Vector4> {
     /// Identity matrix, 1s along the diagonal and 0s elsewhere.
     const IDENTITY: Self;
     /// Construct a 4x4 matrix from an array, takes input in column-major order.
-    fn from_array(arr: [[f32; 4]; 4]) -> Self;
+    fn from_cols_array(arr: [[f32; 4]; 4]) -> Self;
 }
 
 pub trait Vector3: Vector {
@@ -187,7 +187,7 @@ pub(crate) mod test_util {
     impl Matrix4 for TestMat4 {
         type Vector4 = TestVec4;
         const IDENTITY: Self = Self;
-        fn from_array(_: [[f32; 4]; 4]) -> Self {
+        fn from_cols_array(_: [[f32; 4]; 4]) -> Self {
             Self
         }
     }

@@ -5,18 +5,12 @@ use std::f32::consts::TAU;
 use self::ops::{Extrude, LiftOrthographic};
 use crate::{
     linear_algebra::{Vector2, Vector3, Vector4},
-    transform::{
-        rotate_scale_translate4::RotateScaleTranslate4,
-        traits::{InterpolateWith, Transform},
-    },
+    transform::traits::{InterpolateWith, Transform},
     util::lerp,
 };
 
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(
-    feature = "bevy",
-    derive(bevy::reflect::Reflect),
-)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex2<V: Vector2> {
     pub position: V,
 }
@@ -35,11 +29,16 @@ impl<V: Vector2> InterpolateWith for Vertex2<V> {
     }
 }
 
+impl<V: Vector2, T: Transform<V>> Transform<Vertex2<V>> for T {
+    fn transform(&self, operand: Vertex2<V>) -> Vertex2<V> {
+        Vertex2 {
+            position: self.transform(operand.position),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(
-    feature = "bevy",
-    derive(bevy::reflect::Reflect),
-)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex3<V: Vector3> {
     pub position: V,
 }
@@ -58,11 +57,16 @@ impl<V: Vector3> InterpolateWith for Vertex3<V> {
     }
 }
 
+impl<V: Vector3, T: Transform<V>> Transform<Vertex3<V>> for T {
+    fn transform(&self, operand: Vertex3<V>) -> Vertex3<V> {
+        Vertex3 {
+            position: self.transform(operand.position),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(
-    feature = "bevy",
-    derive(bevy::reflect::Reflect),
-)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex4<V: Vector4> {
     pub position: V,
 }
@@ -73,18 +77,18 @@ impl<V: Vector4> Default for Vertex4<V> {
     }
 }
 
-impl<V: Vector4> Transform<Vertex4<V>> for RotateScaleTranslate4<V> {
-    fn transform(&self, operand: Vertex4<V>) -> Vertex4<V> {
-        Vertex4 {
-            position: self.transform(operand.position),
-        }
-    }
-}
-
 impl<V: Vector4> InterpolateWith for Vertex4<V> {
     fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
+        }
+    }
+}
+
+impl<V: Vector4, T: Transform<V>> Transform<Vertex4<V>> for T {
+    fn transform(&self, operand: Vertex4<V>) -> Vertex4<V> {
+        Vertex4 {
+            position: self.transform(operand.position),
         }
     }
 }

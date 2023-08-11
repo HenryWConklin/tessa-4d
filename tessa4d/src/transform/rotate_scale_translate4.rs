@@ -33,7 +33,7 @@ impl<V: Vector4> RotateScaleTranslate4<V> {
                 *element *= self.scale;
             }
         }
-        V::Matrix4::from_array(arr)
+        V::Matrix4::from_cols_array(arr)
     }
 
     /// Returns a transform that applies this transform, and then the given rotation.

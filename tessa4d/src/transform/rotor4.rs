@@ -209,7 +209,7 @@ impl Rotor4 {
 
     /// Creates a 4x4 rotation matrix that applies the same rotation as this rotor.
     pub fn into_mat4<M: Matrix4>(&self) -> M {
-        M::from_array(self.into_mat4_array())
+        M::from_cols_array(self.into_mat4_array())
     }
 
     /// Computes RR^-1, should be (1, 0) if the rotor is properly normalized.
