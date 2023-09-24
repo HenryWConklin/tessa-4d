@@ -17,7 +17,7 @@ where
     let intersection = depth1 / (depth1 - depth2);
     let vertex1 = vertex1.project_orthographic();
     let vertex2 = vertex2.project_orthographic();
-    vertex1.interpolate_with(vertex2, intersection)
+    vertex1.interpolate_with(&vertex2, intersection)
 }
 
 pub trait CrossSection {

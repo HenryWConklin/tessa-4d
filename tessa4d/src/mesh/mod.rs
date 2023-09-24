@@ -22,7 +22,7 @@ impl<V: Vector2> Default for Vertex2<V> {
 }
 
 impl<V: Vector2> InterpolateWith for Vertex2<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
         }
@@ -50,7 +50,7 @@ impl<V: Vector3> Default for Vertex3<V> {
 }
 
 impl<V: Vector3> InterpolateWith for Vertex3<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
         }
@@ -78,7 +78,7 @@ impl<V: Vector4> Default for Vertex4<V> {
 }
 
 impl<V: Vector4> InterpolateWith for Vertex4<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
         }

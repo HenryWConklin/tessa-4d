@@ -42,6 +42,10 @@ impl Rotor4 {
         bivec.scaled(0.5).exp().normalized()
     }
 
+    pub fn into_bivec_angles(&self) -> Bivec4 {
+        self.log().scaled(2.0).into()
+    }
+
     /// Getter for the scalar term of the rotor.
     pub fn c(&self) -> f32 {
         self.c
@@ -241,6 +245,12 @@ impl Rotor4 {
     }
 }
 
+impl Default for Rotor4 {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
 impl<V: Vector4> Transform<V> for Rotor4 {
     fn transform(&self, operand: V) -> V {
         let matrix: V::Matrix4 = self.into_mat4();
@@ -321,8 +331,8 @@ impl Inverse for Rotor4 {
 }
 
 impl InterpolateWith for Rotor4 {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        self.compose(self.inverse().compose(other).pow(fraction))
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
+        self.compose(self.inverse().compose(*other).pow(fraction))
     }
 }
 
@@ -484,7 +494,7 @@ impl Bivec4 {
     }
 
     /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, and B1^2, B2^2 are scalars.
-    pub fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
+    fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
         let mag = self.max_component_magnitude();
         let bivec = self.scaled(1.0 / mag);
         let squared = bivec.square();
@@ -829,6 +839,26 @@ mod test {
     }
 
     #[test]
+    fn test_rotor_into_bivec_angles() {
+        let rotor = Rotor4 {
+            c: FRAC_PI_3.cos(),
+            bivec: Bivec4 {
+                xy: FRAC_PI_3.sin(),
+                ..Bivec4::ZERO
+            },
+            xyzw: 0.0,
+        };
+        let expected = Bivec4 {
+            xy: 2.0 * FRAC_PI_3,
+            ..Bivec4::ZERO
+        };
+
+        let got = dbg!(rotor.into_bivec_angles());
+
+        assert!(bivec_approx_equal(got, expected));
+    }
+
+    #[test]
     fn test_rotor_from_bivec_angle_transform_simple() {
         let bivec = Bivec4 {
             xy: FRAC_PI_3,
@@ -1163,7 +1193,7 @@ mod test {
         };
         dbg!(rotor, frac, expected);
 
-        let got = dbg!(Rotor4::IDENTITY.interpolate_with(rotor, frac));
+        let got = dbg!(Rotor4::IDENTITY.interpolate_with(&rotor, frac));
 
         assert!(rotor_approx_equal(got, expected));
     }
@@ -1719,6 +1749,18 @@ mod test {
                 xyzw: -got.xyzw,
             };
             assert!(rotor_approx_equal(got, rotor) || rotor_approx_equal(minus_got, rotor));
+        }
+
+        #[test]
+        fn test_rotor_from_into_bivec_angles_fuzz_test(bivec in arbitrary_bivec4(1.0), angle in -PI..PI) {
+            // Gets ambiguous if the total rotation is >PI, so 'normalize'
+            let norm = bivec.square().c.abs().sqrt();
+            let bivec = bivec.scaled(angle/norm);
+
+            let rotor = dbg!(Rotor4::from_bivec_angles(dbg!(bivec)));
+            let bivec2 = dbg!(rotor.into_bivec_angles());
+
+            assert!(bivec_approx_equal(bivec2, bivec));
         }
 
         #[test]
