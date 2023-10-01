@@ -1,11 +1,21 @@
 //! Trait impls for Godot4 gdextension types.
 #![cfg(feature = "godot4")]
 
-use godot::prelude::{Basis, Projection, Transform2D, Transform3D, Vector2, Vector3, Vector4};
+use godot::{
+    bind::property::ExportInfo,
+    engine::global::PropertyHint,
+    prelude::{
+        Basis, Export, PackedFloat32Array, Projection, Property, Transform2D, Transform3D, Vector2,
+        Vector3, Vector4,
+    },
+};
 
 use crate::{
     linear_algebra::{self, Vector},
-    transform::traits::Transform,
+    transform::{
+        rotor4::{Bivec4, Rotor4},
+        traits::Transform,
+    },
 };
 
 macro_rules! vector_trait_impls {
@@ -125,4 +135,50 @@ impl Transform<Vector4> for Projection {
     fn transform(&self, operand: Vector4) -> Vector4 {
         *self * operand
     }
+}
+
+impl Property for Rotor4 {
+    type Intermediate = PackedFloat32Array;
+    fn get_property(&self) -> Self::Intermediate {
+        PackedFloat32Array::from(&[
+            self.c(),
+            self.bivec().xy,
+            self.bivec().xz,
+            self.bivec().yz,
+            self.bivec().xw,
+            self.bivec().wy,
+            self.bivec().zw,
+            self.xyzw(),
+        ])
+    }
+
+    fn set_property(&mut self, value: Self::Intermediate) {
+        // This is very permissive to avoid panics. Default to 0 if not enough values, ignore extra values
+        let vals = value.as_slice();
+        *self = Rotor4::new(
+            get_or_default(vals, 0),
+            Bivec4 {
+                xy: get_or_default(vals, 1),
+                xz: get_or_default(vals, 2),
+                yz: get_or_default(vals, 3),
+                xw: get_or_default(vals, 4),
+                wy: get_or_default(vals, 5),
+                zw: get_or_default(vals, 6),
+            },
+            get_or_default(vals, 7),
+        )
+    }
+}
+
+impl Export for Rotor4 {
+    fn default_export_info() -> godot::bind::property::ExportInfo {
+        ExportInfo {
+            hint: PropertyHint::PROPERTY_HINT_NONE,
+            hint_string: "".into(),
+        }
+    }
+}
+
+fn get_or_default<T: Copy + Default>(vals: &[T], i: usize) -> T {
+    vals.get(i).copied().unwrap_or_default()
 }
