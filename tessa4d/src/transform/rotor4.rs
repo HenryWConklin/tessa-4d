@@ -24,6 +24,11 @@ impl Rotor4 {
         xyzw: 0.0,
     };
 
+    /// Makes a new normalized Rotor with the given components.
+    pub fn new(c: f32, bivec: Bivec4, xyzw: f32) -> Self {
+        Self { c, bivec, xyzw }.normalized()
+    }
+
     /// Makes a rotor that rotates in the plane of `from` and `to` by the twice angle between them.
     pub fn between<V: Vector4>(from: V, to: V) -> Self {
         let from = from.normalized();
