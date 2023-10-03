@@ -24,7 +24,7 @@ pub trait CrossSection {
     type CrossSectioned;
     /// Returns the cross section of this mesh. That is, the portion of the mesh that intersects with a hyperplane one dimension lower than the mesh.
     /// Preserves the handedness (winding order) of the source mesh in the resulting mesh, so that e.g. a clockwise tetrahedron gives clockwise triangles.
-    fn cross_section(self) -> Self::CrossSectioned;
+    fn cross_section(&self) -> Self::CrossSectioned;
 }
 
 impl<V: ProjectOrthographic + Copy> CrossSection for TetrahedronMesh<V>
@@ -32,7 +32,7 @@ where
     V::Projected: InterpolateWith,
 {
     type CrossSectioned = TriangleMesh<V::Projected>;
-    fn cross_section(self) -> TriangleMesh<V::Projected> {
+    fn cross_section(&self) -> TriangleMesh<V::Projected> {
         // Maps edges in the old mesh to projected vertices in the new mesh, takes the edge as a tuple with the lower index first.
         let mut edge_indices: HashMap<(usize, usize), usize> = HashMap::new();
         let mut projected_vertices: Vec<V::Projected> = vec![];
@@ -54,7 +54,7 @@ where
         };
         let projected_simplexes = self
             .simplexes
-            .into_iter()
+            .iter()
             .flat_map(|simplex| {
                 let vertex_section_side = simplex.map(|vert_index| {
                     self.vertices[vert_index].orthographic_depth() > CROSS_SECTION_DEPTH
