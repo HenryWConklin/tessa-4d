@@ -9,7 +9,7 @@ use tessa4d::transform::{
 
 #[derive(GodotClass, Clone, Copy, Debug)]
 #[class(base=RefCounted,init)]
-struct Bivector4D {
+pub struct Bivector4D {
     #[export]
     xy: f32,
     #[export]
@@ -91,8 +91,9 @@ impl Bivector4D {
 #[allow(dead_code)]
 #[derive(GodotClass, Debug, Clone, Copy)]
 #[class(base=RefCounted,init)]
-struct Rotor4D {
+pub struct Rotor4D {
     rotor: TessaRotor4,
+    // TODO add properties/getters for rotor components
 }
 
 #[godot_api]
@@ -148,9 +149,10 @@ impl From<TessaRotor4> for Rotor4D {
     }
 }
 
-#[derive(GodotClass, Debug, Clone)]
+#[derive(GodotClass, Debug, Clone, Copy)]
 #[class(base=Resource)]
-struct Transform4D {
+pub struct Transform4D {
+    // TODO add rotor property
     #[export]
     _rotation: TessaRotor4,
     #[export]
@@ -162,7 +164,7 @@ struct Transform4D {
 #[godot_api]
 impl ResourceVirtual for Transform4D {
     fn init(_base: Base<Resource>) -> Self {
-        Self::from(RotateScaleTranslate4::IDENTITY)
+        Self::default()
     }
 }
 
@@ -258,5 +260,11 @@ impl From<RotateScaleTranslate4<Vector4>> for Transform4D {
             scale: value.scale,
             position: value.translation,
         }
+    }
+}
+
+impl Default for Transform4D {
+    fn default() -> Self {
+        Self::from(RotateScaleTranslate4::default())
     }
 }

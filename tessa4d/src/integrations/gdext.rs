@@ -3,15 +3,13 @@
 
 use godot::{
     bind::property::ExportInfo,
-    engine::global::PropertyHint,
-    prelude::{
-        Basis, Export, PackedFloat32Array, Projection, Property, Transform2D, Transform3D, Vector2,
-        Vector3, Vector4,
-    },
+    engine::{mesh::PrimitiveType, ArrayMesh, SurfaceTool},
+    prelude::*,
 };
 
 use crate::{
-    linear_algebra::{self, Vector},
+    linear_algebra,
+    mesh::{TetrahedronMesh4D, TriangleMesh3D, Vertex4},
     transform::{
         rotor4::{Bivec4, Rotor4},
         traits::Transform,
@@ -21,7 +19,7 @@ use crate::{
 macro_rules! vector_trait_impls {
     ($($vec_type:ty),*) => {
         $(
-            impl Vector for $vec_type {
+            impl linear_algebra::Vector for $vec_type {
                 const ZERO: Self = Self::ZERO;
                 fn dot(self, other: Self) -> f32 {
                     self.dot(other)
@@ -37,7 +35,7 @@ macro_rules! vector_trait_impls {
 vector_trait_impls!(Vector2, Vector3);
 
 // Vector4 doesn't have an implementation for dot, so the macro doesn't work.
-impl Vector for Vector4 {
+impl linear_algebra::Vector for Vector4 {
     const ZERO: Self = Self::ZERO;
     fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
@@ -172,10 +170,98 @@ impl Property for Rotor4 {
 
 impl Export for Rotor4 {
     fn default_export_info() -> godot::bind::property::ExportInfo {
-        ExportInfo {
-            hint: PropertyHint::PROPERTY_HINT_NONE,
-            hint_string: "".into(),
+        ExportInfo::with_hint_none()
+    }
+}
+
+const POSITIONS_KEY: &str = "positions";
+const SIMPLEXES_KEY: &str = "simplexes";
+impl Property for TetrahedronMesh4D<Vector4> {
+    type Intermediate = Dictionary;
+    fn get_property(&self) -> Self::Intermediate {
+        let mut dict = Dictionary::new();
+        dict.set(
+            POSITIONS_KEY,
+            PackedFloat32Array::from_iter(
+                self.vertices
+                    .iter()
+                    .flat_map(|v| [v.position.x, v.position.y, v.position.z, v.position.w]),
+            ),
+        );
+        dict.set(
+            SIMPLEXES_KEY,
+            PackedInt64Array::from_iter(self.simplexes.iter().flatten().map(|i| *i as i64)),
+        );
+        dict
+    }
+    fn set_property(&mut self, value: Self::Intermediate) {
+        const N_DIM: usize = 4;
+        let positions: PackedFloat32Array = match value.get_or_nil(POSITIONS_KEY).try_to() {
+            Ok(val) => val,
+            Err(variant_error) => {
+                godot_error!("Error setting TetrahedronMesh4D from dictionary, value for [{}] key can't be mapped to a PackedFloat32Array: {}.", POSITIONS_KEY, variant_error);
+                return;
+            }
+        };
+        let simplexes: PackedInt64Array = match value.get_or_nil(SIMPLEXES_KEY).try_to() {
+            Ok(val) => val,
+            Err(variant_error) => {
+                godot_error!("Error setting TetrahedronMesh4D from dictionry, value for [{}] key can't be mapped to a PackedInt64Array: {}", SIMPLEXES_KEY, variant_error);
+                return;
+            }
+        };
+
+        let position_vecs = positions
+            .as_slice()
+            .chunks_exact(N_DIM)
+            .map(|comps| Vector4::new(comps[0], comps[1], comps[2], comps[3]));
+
+        self.vertices.clear();
+        self.vertices
+            .extend(position_vecs.map(|pos| Vertex4 { position: pos }));
+
+        self.simplexes.clear();
+        self.simplexes
+            .extend(simplexes.as_slice().chunks_exact(N_DIM).map(|slice| {
+                let arr: [i64; 4] = slice.try_into().expect("should have 4 elements");
+                arr.map(|i| i as usize)
+            }))
+    }
+}
+
+impl Export for TetrahedronMesh4D<Vector4> {
+    fn default_export_info() -> ExportInfo {
+        ExportInfo::with_hint_none()
+    }
+}
+
+pub fn into_gdmesh_arrays(mut value: TriangleMesh3D<Vector3>) -> Array<Variant> {
+    value.invert();
+    let mut surface_tool = SurfaceTool::new();
+    surface_tool.begin(PrimitiveType::PRIMITIVE_TRIANGLES);
+    for vert in &value.vertices {
+        surface_tool.set_smooth_group(u32::MAX);
+        surface_tool.add_vertex(vert.position);
+    }
+
+    for triangle in &value.simplexes {
+        for index in triangle {
+            surface_tool.add_index((*index).try_into().unwrap());
         }
+    }
+    surface_tool.generate_normals();
+
+    surface_tool.commit_to_arrays()
+}
+
+impl From<TriangleMesh3D<Vector3>> for Gd<ArrayMesh> {
+    fn from(value: TriangleMesh3D<Vector3>) -> Self {
+        let mut mesh = ArrayMesh::new();
+        if !value.simplexes.is_empty() && !value.simplexes.is_empty() {
+            let arrays = into_gdmesh_arrays(value);
+            mesh.add_surface_from_arrays(PrimitiveType::PRIMITIVE_TRIANGLES, arrays);
+        }
+        mesh
     }
 }
 
