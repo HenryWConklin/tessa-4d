@@ -1,4 +1,8 @@
-use godot::{engine::ArrayMesh, engine::MeshInstance3D, prelude::*};
+use godot::{
+    engine::ArrayMesh,
+    engine::{notify::NodeNotification, MeshInstance3D},
+    prelude::*,
+};
 use tessa4d::{
     mesh::{ops::CrossSection, TetrahedronMesh, Vertex4},
     transform::rotate_scale_translate4::RotateScaleTranslate4,
@@ -134,7 +138,7 @@ impl From<TetrahedronMesh4D> for TetrahedronMesh<Vertex4<Vector4>> {
 }
 
 #[derive(GodotClass, Debug)]
-#[class(base=Node, init, tool)]
+#[class(base=Node, tool)]
 pub struct MeshInstance4D {
     #[base]
     node: Base<Node>,
@@ -144,23 +148,35 @@ pub struct MeshInstance4D {
     #[var(set=set_transform, get, usage_flags=[PROPERTY_USAGE_DEFAULT, PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT])]
     transform: Option<Gd<Transform4D>>,
 
-    #[init(default=(MeshInstance3D::new_alloc()))]
     mesh_instance: Gd<MeshInstance3D>,
 }
 
 #[godot_api]
 impl NodeVirtual for MeshInstance4D {
-    fn enter_tree(&mut self) {
-        self.ensure_transform_present();
-        self.node
-            .add_child(self.mesh_instance.clone().upcast::<Node>());
-        self.update_mesh();
+    fn init(base: Base<Node>) -> Self {
+        let mut instance = Self {
+            node: base,
+            mesh: None,
+            transform: None,
+            mesh_instance: MeshInstance3D::new_alloc(),
+        };
+        instance
+            .node
+            .add_child(instance.mesh_instance.clone().upcast::<Node>());
+        instance
     }
 
-    fn process(&mut self, _delta: f64) {
-        // FIXME not being called when run (does work in editor as a tool script though)
-        // Issue with having a script attached to the node.
-        self.update_mesh();
+    fn on_notification(&mut self, notification: NodeNotification) {
+        match notification {
+            NodeNotification::EnterTree => {
+                self.ensure_transform_present();
+                self.update_mesh();
+            }
+            NodeNotification::Process => {
+                self.update_mesh();
+            }
+            _ => {}
+        }
     }
 }
 
@@ -171,6 +187,7 @@ impl MeshInstance4D {
         // This custom setter is required to make sure that the transform is never null. Can't use a getter
         // because the Godot editor uses a static instance for the "default" value, so resetting the transform doesn't
         // behave as expected.
+        // TODO(https://github.com/godotengine/godot/issues/83108) Remove if fixed
         if let Ok(val) = value.try_to() {
             self.transform = val
         }
