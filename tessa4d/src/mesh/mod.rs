@@ -141,7 +141,7 @@ impl<V: Copy, const N: usize> SimplexMesh<V, N> {
     /// Joins this mesh with another mesh, merging their geometry together. This is a simple operation and doesn't do anything to avoid duplicate vertices, internal geometry, or other potential issues.
     pub fn join(&mut self, other: Self) -> &mut Self {
         let self_num_verts = self.vertices.len();
-        self.vertices.extend(other.vertices.into_iter());
+        self.vertices.extend(other.vertices);
         self.simplexes.extend(
             other
                 .simplexes

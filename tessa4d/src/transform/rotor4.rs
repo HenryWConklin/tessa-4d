@@ -71,7 +71,6 @@ impl Rotor4 {
         let bivec_simple = SimpleBivec4::try_from(self.bivec);
         match bivec_simple {
             Ok(bivec) if approx_equal(self.xyzw, 0.0) => {
-                let bivec = bivec;
                 let abs_angle = (bivec.magnitude() / self.c.abs()).atan();
                 let angle = if self.c > 0.0 {
                     abs_angle
@@ -993,7 +992,7 @@ mod test {
             assert!(!bivec_approx_equal(bivec2.bivec, Bivec4::ZERO));
             assert!(rotor_approx_equal(got.exp(), rotor));
         } else {
-            assert!(false, "Not a double rotation");
+            panic!("Not a double rotation");
         }
     }
 

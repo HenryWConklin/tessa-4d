@@ -239,7 +239,7 @@ impl Transform4D {
     }
 
     fn into_tessa(&self) -> RotateScaleTranslate4<Vector4> {
-        self.clone().into()
+        (*self).into()
     }
 }
 
