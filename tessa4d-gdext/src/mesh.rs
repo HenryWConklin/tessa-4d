@@ -163,6 +163,7 @@ impl NodeVirtual for MeshInstance4D {
         instance
             .node
             .add_child(instance.mesh_instance.clone().upcast::<Node>());
+        instance.node.set_process(true);
         instance
     }
 
