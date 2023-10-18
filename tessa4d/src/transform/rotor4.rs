@@ -500,6 +500,10 @@ impl Bivec4 {
     /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, and B1^2, B2^2 are scalars.
     fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
         let mag = self.max_component_magnitude();
+        if approx_equal(mag, 0.0) {
+            let zero = Bivec4::ZERO.force_simple();
+            return (zero, zero);
+        }
         let bivec = self.scaled(1.0 / mag);
         let squared = bivec.square();
         let det = ((squared.c + squared.xyzw) * (squared.c - squared.xyzw)).sqrt();
@@ -878,6 +882,15 @@ mod test {
         let got = dbg!(rotor.transform(vec));
 
         assert!(vector_approx_equal(got, expected));
+    }
+
+    #[test]
+    fn test_rotor_from_bivec_angle_zero() {
+        let bivec = Bivec4::ZERO;
+
+        let rotor = dbg!(Rotor4::from_bivec_angles(bivec));
+
+        assert!(rotor_approx_equal(rotor, Rotor4::IDENTITY));
     }
 
     #[test]
