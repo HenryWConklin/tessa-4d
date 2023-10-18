@@ -25,6 +25,7 @@ impl Rotor4 {
     };
 
     /// Makes a new normalized Rotor with the given components.
+    /// Returns `Rotor4::IDENTITY` if all components are zero.
     pub fn new(c: f32, bivec: Bivec4, xyzw: f32) -> Self {
         Self { c, bivec, xyzw }.normalized()
     }
@@ -241,6 +242,9 @@ impl Rotor4 {
 
         let error = self.normalization_error();
         let magnitude = error.c.sqrt();
+        if approx_equal(magnitude, 0.0) {
+            return Self::IDENTITY;
+        }
         self.c /= magnitude;
         self.bivec = self.bivec.scaled(1.0 / magnitude);
         self.xyzw /= magnitude;
@@ -746,6 +750,13 @@ mod test {
 
     use super::test_util::*;
     use super::*;
+
+    #[test]
+    fn test_rotor_new_zero() {
+        let rotor = dbg!(Rotor4::new(0.0, Bivec4::ZERO, 0.0));
+
+        assert!(rotor_approx_equal(rotor, Rotor4::IDENTITY));
+    }
 
     #[test]
     fn test_rotor_between() {
