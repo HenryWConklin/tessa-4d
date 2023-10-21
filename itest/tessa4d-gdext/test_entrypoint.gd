@@ -7,6 +7,7 @@ var frame_timer: int = 0
 var tests_failed: int = 0
 
 func _initialize():
+	print ("Running tests")
 	for file in DirAccess.get_files_at(TEST_DIR):
 		if file.ends_with(".gd"):
 			var test_script: GDScript = load(TEST_DIR + "/" + file)

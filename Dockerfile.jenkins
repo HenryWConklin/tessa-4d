@@ -8,4 +8,18 @@ RUN apt-get update \
     libudev-dev \
     libwayland-dev \
     libxkbcommon-dev \
+    wget \
+    unzip \
+    xvfb xorg mesa-utils pulseaudio \
     && rm -rf /var/lib/apt/lists/*
+
+ARG GODOT_VERSION
+ENV GODOT_VERSION=${GODOT_VERSION:-4.1.2}
+RUN echo ${GODOT_VERSION}
+RUN wget -O /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip \
+  && unzip /tmp/godot.zip -d /tmp \
+  && mv /tmp/Godot* /usr/local/bin/godot \
+  && rm /tmp/godot.zip
+
+
+RUN useradd -ms /bin/bash -u 1000 user
