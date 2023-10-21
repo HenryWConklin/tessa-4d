@@ -2,6 +2,7 @@
 name = "tessa4d-gdext"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 [lib]
 crate-type = ["cdylib"]
