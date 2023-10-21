@@ -88,7 +88,8 @@ fn tesseract_crossection(
 ) {
     for (tesseract, transform, mesh_handle) in query.iter() {
         tetmeshes.get(&tesseract.0).map(|tetmesh| {
-            let tetmesh = tetmesh.clone().apply_transform(transform);
+            let mut tetmesh = tetmesh.clone();
+            tetmesh.apply_transform(transform);
             let mut mesh = to_bevy_mesh(tetmesh.cross_section());
             mesh.duplicate_vertices();
             mesh.compute_flat_normals();

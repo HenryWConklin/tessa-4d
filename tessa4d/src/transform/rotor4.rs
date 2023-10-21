@@ -504,7 +504,8 @@ impl Bivec4 {
     /// Factors this bivector B into two the sum of *simple*, *orthogonal* bivectors. That is, B = B1 + B2, B1 * B2 = B2 * B1, and B1^2, B2^2 are scalars.
     fn factor_into_simple_orthogonal(&self) -> (SimpleBivec4, SimpleBivec4) {
         let mag = self.max_component_magnitude();
-        if approx_equal(mag, 0.0) {
+        // Use some extra precision before defaulting to zero to help to/from_bivec_angles with precision.
+        if mag.abs() < 1e-4 {
             let zero = Bivec4::ZERO.force_simple();
             return (zero, zero);
         }
@@ -1783,7 +1784,12 @@ mod test {
         fn test_rotor_from_into_bivec_angles_fuzz_test(bivec in arbitrary_bivec4(1.0), angle in -PI..PI) {
             // Gets ambiguous if the total rotation is >PI, so 'normalize'
             let norm = bivec.square().c.abs().sqrt();
-            let bivec = bivec.scaled(angle/norm);
+            let scale = if approx_equal(norm, 0.0) {
+                angle
+            } else {
+                angle / norm
+            };
+            let bivec = bivec.scaled(scale);
 
             let rotor = dbg!(Rotor4::from_bivec_angles(dbg!(bivec)));
             let bivec2 = dbg!(rotor.into_bivec_angles());
