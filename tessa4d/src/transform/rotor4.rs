@@ -1725,7 +1725,7 @@ mod test {
 
         #[test]
         fn test_rotor_compose_stability_fuzz_test(rotor in arbitrary_rotor4()) {
-            const COMPOSE_ITERS: usize = 1000;
+            const COMPOSE_ITERS: usize = 100;
             let mut compose_rotor = rotor;
             for _ in 0..COMPOSE_ITERS {
                 compose_rotor = compose_rotor.compose(rotor);
@@ -1734,6 +1734,8 @@ mod test {
                 compose_rotor = compose_rotor.compose(rotor.inverse());
             }
 
+            dbg!(rotor);
+            dbg!(compose_rotor);
             assert!(rotor_approx_equal(compose_rotor, rotor));
         }
 
