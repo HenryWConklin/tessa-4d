@@ -19,6 +19,9 @@ func _ready():
 	$MeshInstance4D.transform.set_rotor(Rotor4D.from_bivector_angles(rotation))
 	await get_tree().process_frame
 	passed = ScreenshotCompare.take_screenshot(\"test_meshinstance4d_render_xyxw\", get_viewport()) and passed
+	$MeshInstance4D.transform.position.w = .5
+	await get_tree().process_frame
+	passed = ScreenshotCompare.take_screenshot(\"test_meshinstance4d_renter_xyxw_w\", get_viewport()) and passed
 	emit_signal(\"finished\", passed)
 "
 
