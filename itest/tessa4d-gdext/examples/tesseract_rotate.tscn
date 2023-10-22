@@ -1,0 +1,103 @@
+[gd_scene load_steps=4 format=3 uid="uid://dy6bpsxmcmi2o"]
+
+[sub_resource type="Transform4D" id="Transform4D_17rcj"]
+
+[sub_resource type="GDScript" id="GDScript_2r8j8"]
+script/source = "extends MeshInstance4D
+
+func _ready():
+	self.mesh = TetrahedronMesh4D.tesseract_cube(1.0)
+"
+
+[sub_resource type="GDScript" id="GDScript_2h6b4"]
+script/source = "extends GridContainer
+
+var rotation_bivec : Bivector4D = Bivector4D.new()
+
+@export
+var tesseract: MeshInstance4D
+
+func _process(_delta):
+	var rotor = Rotor4D.from_bivector_angles(rotation_bivec)
+#	print(rotation_bivec)
+	tesseract.transform.set_rotor(rotor)
+
+func _on_slider_xy_value_changed(value):
+	rotation_bivec.xy = deg_to_rad(value)
+
+
+func _on_slider_xz_value_changed(value):
+	rotation_bivec.xz = deg_to_rad(value)
+	
+
+func _on_slider_yz_value_changed(value):
+	rotation_bivec.yz = deg_to_rad(value)
+
+
+func _on_slider_xw_value_changed(value):
+	rotation_bivec.xw = deg_to_rad(value)
+
+
+func _on_slider_wy_value_changed(value):
+	rotation_bivec.wy = deg_to_rad(value)
+
+
+func _on_slider_zw_value_changed(value):
+	rotation_bivec.zw = deg_to_rad(value)
+"
+
+[node name="Node3D" type="Node3D"]
+
+[node name="MeshInstance4D" type="MeshInstance4D" parent="."]
+transform = SubResource("Transform4D_17rcj")
+script = SubResource("GDScript_2r8j8")
+
+[node name="GridContainer" type="GridContainer" parent="." node_paths=PackedStringArray("tesseract")]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+columns = 3
+script = SubResource("GDScript_2h6b4")
+tesseract = NodePath("../MeshInstance4D")
+
+[node name="SliderXY" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 360.0
+
+[node name="SliderXZ" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 360.0
+
+[node name="SliderYZ" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+max_value = 360.0
+
+[node name="SliderXW" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+max_value = 360.0
+
+[node name="SliderWY" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+max_value = 360.0
+
+[node name="SliderZW" type="HSlider" parent="GridContainer"]
+layout_mode = 2
+max_value = 360.0
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.880453, 0.474134, 0, -0.474134, 0.880453, 0, 1.70767, 3.01677)
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, 0, -0.707107, 0.5, 0.707107, 0.5, 0.5, -0.707107, 0.5, -2, 2, 3.01677)
+
+[connection signal="value_changed" from="GridContainer/SliderXY" to="GridContainer" method="_on_slider_xy_value_changed"]
+[connection signal="value_changed" from="GridContainer/SliderXZ" to="GridContainer" method="_on_slider_xz_value_changed"]
+[connection signal="value_changed" from="GridContainer/SliderYZ" to="GridContainer" method="_on_slider_yz_value_changed"]
+[connection signal="value_changed" from="GridContainer/SliderXW" to="GridContainer" method="_on_slider_xw_value_changed"]
+[connection signal="value_changed" from="GridContainer/SliderWY" to="GridContainer" method="_on_slider_wy_value_changed"]
+[connection signal="value_changed" from="GridContainer/SliderZW" to="GridContainer" method="_on_slider_zw_value_changed"]

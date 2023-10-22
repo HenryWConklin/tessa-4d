@@ -88,7 +88,8 @@ fn tesseract_crossection(
 ) {
     for (tesseract, transform, mesh_handle) in query.iter() {
         tetmeshes.get(&tesseract.0).map(|tetmesh| {
-            let tetmesh = tetmesh.clone().apply_transform(transform);
+            let mut tetmesh = tetmesh.clone();
+            tetmesh.apply_transform(transform);
             let mut mesh = to_bevy_mesh(tetmesh.cross_section());
             mesh.duplicate_vertices();
             mesh.compute_flat_normals();
@@ -188,10 +189,9 @@ fn main() {
                 ..Default::default()
             },
         }))
-        .add_plugin(WireframePlugin)
+        .add_plugins(WireframePlugin)
         .add_asset::<TetrahedronMesh4D>()
-        .add_startup_system(setup)
-        .add_system(tesseract_crossection)
-        .add_system(tesseract_rotate)
+        .add_systems(Startup, setup)
+        .add_systems(Update, (tesseract_crossection, tesseract_rotate))
         .run();
 }

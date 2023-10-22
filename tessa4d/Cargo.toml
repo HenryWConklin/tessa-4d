@@ -2,20 +2,22 @@
 name = "tessa4d"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = { version = "0.23.0", optional = true }
-bevy = { version = "0.10.1", optional = true }
+glam = { version = "^0.24.0", optional = true }
+bevy = { version = "^0.11.0", optional = true }
+godot = { git = "https://github.com/godot-rust/gdext", rev = "a92164bb3a98108b95506f80769408583421e6dc", optional = true }
 thiserror = "1.0.38"
 
 [features]
 default = ["glam"]
 glam = ["dep:glam"]
 bevy = ["dep:bevy", "glam"]
+godot4 = ["dep:godot"]
 
 
 [dev-dependencies]
 proptest = "1.1.0"
-rand = "0.8.5"

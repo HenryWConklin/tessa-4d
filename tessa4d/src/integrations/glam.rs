@@ -2,37 +2,44 @@
 
 //! Implementations of traits for Glam structs.
 
-use glam::{Affine2, Affine3A, Mat2, Mat3};
+use glam::{Affine2, Affine3A, Mat2, Mat3, Mat4, Vec2, Vec3, Vec4};
 
 use crate::{
     linear_algebra::{Matrix4, Vector, Vector2, Vector3, Vector4},
-    mesh::{Vertex2, Vertex3},
     transform::traits::Transform,
 };
 
-impl Matrix4 for glam::Mat4 {
-    type Vector4 = glam::Vec4;
-    const IDENTITY: Self = glam::Mat4::IDENTITY;
-    fn from_array(arr: [[f32; 4]; 4]) -> Self {
-        glam::Mat4::from_cols_array_2d(&arr)
+macro_rules! impl_vector_trait {
+    ($($vec_type:ty),*) => {
+        $(
+            impl Vector for $vec_type {
+                const ZERO: Self = Self::ZERO;
+                fn dot(self, other:Self) -> f32 {
+                    Self::dot(self, other)
+                }
+
+                fn normalized(self) -> Self {
+                    Self::normalize(self)
+                }
+            }
+        )*
+    };
+}
+impl_vector_trait!(Vec2, Vec3, Vec4);
+
+impl Matrix4 for Mat4 {
+    type Vector4 = Vec4;
+    const IDENTITY: Self = Mat4::IDENTITY;
+    fn from_cols_array(arr: [[f32; 4]; 4]) -> Self {
+        Mat4::from_cols_array_2d(&arr)
     }
 }
 
-impl Vector for glam::Vec4 {
-    const ZERO: Self = glam::Vec4::ZERO;
-    fn dot(self, other: Self) -> f32 {
-        glam::Vec4::dot(self, other)
-    }
-
-    fn normalized(self) -> Self {
-        glam::Vec4::normalize(self)
-    }
-}
-impl Vector4 for glam::Vec4 {
-    type Matrix4 = glam::Mat4;
-    type Vector3 = glam::Vec3;
+impl Vector4 for Vec4 {
+    type Matrix4 = Mat4;
+    type Vector3 = Vec3;
     fn new(x: f32, y: f32, z: f32, w: f32) -> Self {
-        glam::Vec4::new(x, y, z, w)
+        Vec4::new(x, y, z, w)
     }
     fn x(self) -> f32 {
         self.x
@@ -48,19 +55,9 @@ impl Vector4 for glam::Vec4 {
     }
 }
 
-impl Vector for glam::Vec3 {
-    const ZERO: Self = glam::Vec3::ZERO;
-    fn dot(self, other: Self) -> f32 {
-        glam::Vec3::dot(self, other)
-    }
-
-    fn normalized(self) -> Self {
-        glam::Vec3::normalize(self)
-    }
-}
-impl Vector3 for glam::Vec3 {
-    type Vector2 = glam::Vec2;
-    type Vector4 = glam::Vec4;
+impl Vector3 for Vec3 {
+    type Vector2 = Vec2;
+    type Vector4 = Vec4;
 
     fn new(x: f32, y: f32, z: f32) -> Self {
         glam::vec3(x, y, z)
@@ -76,23 +73,12 @@ impl Vector3 for glam::Vec3 {
     }
 
     fn cross(self, other: Self) -> Self {
-        glam::Vec3::cross(self, other)
+        Vec3::cross(self, other)
     }
 }
 
-impl Vector for glam::Vec2 {
-    const ZERO: Self = glam::Vec2::ZERO;
-
-    fn dot(self, other: Self) -> f32 {
-        glam::Vec2::dot(self, other)
-    }
-
-    fn normalized(self) -> Self {
-        glam::Vec2::normalize(self)
-    }
-}
-impl Vector2 for glam::Vec2 {
-    type Vector3 = glam::Vec3;
+impl Vector2 for Vec2 {
+    type Vector3 = Vec3;
 
     fn new(x: f32, y: f32) -> Self {
         glam::vec2(x, y)
@@ -105,30 +91,32 @@ impl Vector2 for glam::Vec2 {
     }
 }
 
-impl Transform<glam::Vec3> for Mat3 {
-    fn transform(&self, operand: glam::Vec3) -> glam::Vec3 {
-        self.mul_vec3(operand)
-    }
-}
-
-impl Transform<Vertex3<glam::Vec3>> for Affine3A {
-    fn transform(&self, operand: Vertex3<glam::Vec3>) -> Vertex3<glam::Vec3> {
-        Vertex3 {
-            position: self.transform_point3(operand.position),
-        }
-    }
-}
-
-impl Transform<glam::Vec2> for Mat2 {
-    fn transform(&self, operand: glam::Vec2) -> glam::Vec2 {
+impl Transform<Vec2> for Mat2 {
+    fn transform(&self, operand: Vec2) -> Vec2 {
         self.mul_vec2(operand)
     }
 }
 
-impl Transform<Vertex2<glam::Vec2>> for Affine2 {
-    fn transform(&self, operand: Vertex2<glam::Vec2>) -> Vertex2<glam::Vec2> {
-        Vertex2 {
-            position: self.transform_point2(operand.position),
-        }
+impl Transform<Vec2> for Affine2 {
+    fn transform(&self, operand: Vec2) -> Vec2 {
+        self.transform_point2(operand)
+    }
+}
+
+impl Transform<Vec3> for Mat3 {
+    fn transform(&self, operand: Vec3) -> Vec3 {
+        self.mul_vec3(operand)
+    }
+}
+
+impl Transform<Vec3> for Affine3A {
+    fn transform(&self, operand: Vec3) -> Vec3 {
+        self.transform_point3(operand)
+    }
+}
+
+impl Transform<Vec4> for Mat4 {
+    fn transform(&self, operand: Vec4) -> Vec4 {
+        self.mul_vec4(operand)
     }
 }

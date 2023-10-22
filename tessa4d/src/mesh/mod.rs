@@ -5,14 +5,12 @@ use std::f32::consts::TAU;
 use self::ops::{Extrude, LiftOrthographic};
 use crate::{
     linear_algebra::{Vector2, Vector3, Vector4},
-    transform::{
-        rotate_scale_translate4::RotateScaleTranslate4,
-        traits::{InterpolateWith, Transform},
-    },
+    transform::traits::{InterpolateWith, Transform},
     util::lerp,
 };
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex2<V: Vector2> {
     pub position: V,
 }
@@ -24,14 +22,23 @@ impl<V: Vector2> Default for Vertex2<V> {
 }
 
 impl<V: Vector2> InterpolateWith for Vertex2<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
         }
     }
 }
 
+impl<V: Vector2, T: Transform<V>> Transform<Vertex2<V>> for T {
+    fn transform(&self, operand: Vertex2<V>) -> Vertex2<V> {
+        Vertex2 {
+            position: self.transform(operand.position),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex3<V: Vector3> {
     pub position: V,
 }
@@ -43,14 +50,23 @@ impl<V: Vector3> Default for Vertex3<V> {
 }
 
 impl<V: Vector3> InterpolateWith for Vertex3<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
             position: lerp(self.position, other.position, fraction),
         }
     }
 }
 
+impl<V: Vector3, T: Transform<V>> Transform<Vertex3<V>> for T {
+    fn transform(&self, operand: Vertex3<V>) -> Vertex3<V> {
+        Vertex3 {
+            position: self.transform(operand.position),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex4<V: Vector4> {
     pub position: V,
 }
@@ -61,18 +77,18 @@ impl<V: Vector4> Default for Vertex4<V> {
     }
 }
 
-impl<V: Vector4> Transform<Vertex4<V>> for RotateScaleTranslate4<V> {
-    fn transform(&self, operand: Vertex4<V>) -> Vertex4<V> {
-        Vertex4 {
-            position: self.transform(operand.position),
+impl<V: Vector4> InterpolateWith for Vertex4<V> {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
+        Self {
+            position: lerp(self.position, other.position, fraction),
         }
     }
 }
 
-impl<V: Vector4> InterpolateWith for Vertex4<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
-        Self {
-            position: lerp(self.position, other.position, fraction),
+impl<V: Vector4, T: Transform<V>> Transform<Vertex4<V>> for T {
+    fn transform(&self, operand: Vertex4<V>) -> Vertex4<V> {
+        Vertex4 {
+            position: self.transform(operand.position),
         }
     }
 }
@@ -81,6 +97,7 @@ impl<V: Vector4> InterpolateWith for Vertex4<V> {
 #[derive(Clone, Debug)]
 #[cfg_attr(
     feature = "bevy",
+    derive(bevy::reflect::Reflect),
     derive(bevy::reflect::TypeUuid),
     uuid = "746469f2-d902-469a-9af2-534a7ee4112c"
 )]
@@ -103,7 +120,7 @@ pub type TetrahedronMesh4D<V> = TetrahedronMesh<Vertex4<V>>;
 
 impl<V: Copy, const N: usize> SimplexMesh<V, N> {
     /// Applies a transform to all verticies in the mesh in place.
-    pub fn apply_transform<T: Transform<V>>(mut self, transform: &T) -> Self {
+    pub fn apply_transform<T: Transform<V>>(&mut self, transform: &T) -> &mut Self {
         self.vertices.iter_mut().for_each(|p| {
             *p = transform.transform(*p);
         });
@@ -111,7 +128,7 @@ impl<V: Copy, const N: usize> SimplexMesh<V, N> {
     }
 
     /// Inverts all of the simplexes in a mesh in place. Triangles are flipped front to back, tetrahedrons are turned inside-out.
-    pub fn invert(mut self) -> Self {
+    pub fn invert(&mut self) -> &mut Self {
         if N < 2 {
             return self;
         }
@@ -122,9 +139,9 @@ impl<V: Copy, const N: usize> SimplexMesh<V, N> {
     }
 
     /// Joins this mesh with another mesh, merging their geometry together. This is a simple operation and doesn't do anything to avoid duplicate vertices, internal geometry, or other potential issues.
-    pub fn join(mut self, other: Self) -> Self {
+    pub fn join(&mut self, other: Self) -> &mut Self {
         let self_num_verts = self.vertices.len();
-        self.vertices.extend(other.vertices.into_iter());
+        self.vertices.extend(other.vertices);
         self.simplexes.extend(
             other
                 .simplexes
@@ -236,12 +253,14 @@ impl<V: Vector4> TetrahedronMesh4D<V> {
     /// Makes the shell of a rectangular tesseract, with side lengths from `size` and centered at the origin.
     pub fn tesseract(size: V) -> Self {
         let v3_size = V::Vector3::new(size.x(), size.y(), size.z());
-        let tesseract = TriangleMesh::rectangular_prism(v3_size).extrude(size.w());
+        let mut tesseract = TriangleMesh::rectangular_prism(v3_size).extrude(size.w());
         let endcap = TetrahedronMesh::rectangular_prism(v3_size);
         let w_comp = size.w() / 2.0;
-        let top_cap = endcap.lift_orthographic(w_comp).invert();
+        let mut top_cap = endcap.lift_orthographic(w_comp);
+        top_cap.invert();
         let bottom_cap = endcap.lift_orthographic(-w_comp);
-        tesseract.join(top_cap).join(bottom_cap)
+        tesseract.join(top_cap).join(bottom_cap);
+        tesseract
     }
 
     /// Makes the shell of a tesseract with identical side lengths of `size`, centered at the origin.
@@ -346,7 +365,7 @@ mod test {
     proptest! {
         #[test]
         fn tesseract_cross_section_closed(rotor in arbitrary_rotor4(), dir in vec3_uniform(1.0)) {
-            let mesh = TetrahedronMesh4D::<glam::Vec4>::tesseract_cube(1.0);
+            let mut mesh = TetrahedronMesh4D::<glam::Vec4>::tesseract_cube(1.0);
             let transform = RotateScaleTranslate4 {
                 rotation: rotor,
                 ..RotateScaleTranslate4::IDENTITY
@@ -375,7 +394,7 @@ mod test {
 
     #[test]
     fn tesseract_rotated_xw_cross_section_closed() {
-        let mesh = TetrahedronMesh4D::<glam::Vec4>::tesseract_cube(1.0);
+        let mut mesh = TetrahedronMesh4D::<glam::Vec4>::tesseract_cube(1.0);
         let transform = RotateScaleTranslate4 {
             rotation: Rotor4::from_bivec_angles(Bivec4 {
                 // Hole at xw by pi/2 along x axis with just extrude, missing the endcaps.
@@ -402,7 +421,7 @@ mod test {
 
     #[test]
     fn simplexmesh_join() {
-        let mesh1 = TriangleMesh2D {
+        let mut mesh1 = TriangleMesh2D {
             simplexes: vec![[0, 1, 2]],
             vertices: [vec2(0.0, 1.0), vec2(1.0, 0.0), vec2(1.0, 1.0)]
                 .map(|x| Vertex2 { position: x })

@@ -3,21 +3,16 @@ pipeline {
         dockerfile { filename 'Dockerfile.jenkins' }
     }
     stages {
-        stage('Test') {
+        stage('Run Checks') {
             steps {
-                sh 'cargo test'
+                sh '"./run-checks.sh"'
             }
         }
-        stage('Clippy') {
+        stage('Integration Tests') {
+            // Xvfb allows running X without an acutal display
+            // so that we can take screenshots and test rendering in itests.
             steps {
-                sh 'rustup component add clippy'
-                sh 'cargo clippy'
-            }
-        }
-        stage('Format') {
-            steps {
-                sh 'rustup component add rustfmt'
-                sh 'cargo fmt --check'
+                sh 'pulseaudio & xvfb-run -s "-screen 0 1280x1024x24" ./run-itests.sh'
             }
         }
     }

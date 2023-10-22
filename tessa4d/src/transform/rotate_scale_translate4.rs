@@ -33,7 +33,7 @@ impl<V: Vector4> RotateScaleTranslate4<V> {
                 *element *= self.scale;
             }
         }
-        V::Matrix4::from_array(arr)
+        V::Matrix4::from_cols_array(arr)
     }
 
     /// Returns a transform that applies this transform, and then the given rotation.
@@ -64,6 +64,12 @@ impl<V: Vector4> RotateScaleTranslate4<V> {
     }
 }
 
+impl<V: Vector4> Default for RotateScaleTranslate4<V> {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
 impl<V: Vector4> Compose<RotateScaleTranslate4<V>> for RotateScaleTranslate4<V> {
     type Composed = RotateScaleTranslate4<V>;
     fn compose(&self, other: RotateScaleTranslate4<V>) -> Self::Composed {
@@ -80,9 +86,9 @@ impl<V: Vector4> Transform<V> for RotateScaleTranslate4<V> {
 }
 
 impl<V: Vector4> InterpolateWith for RotateScaleTranslate4<V> {
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self {
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self {
         Self {
-            rotation: self.rotation.interpolate_with(other.rotation, fraction),
+            rotation: self.rotation.interpolate_with(&other.rotation, fraction),
             scale: lerp(self.scale, other.scale, fraction),
             translation: lerp(self.translation, other.translation, fraction),
         }
@@ -274,7 +280,7 @@ mod test {
         };
         dbg!(expected);
 
-        let got = dbg!(transform1.interpolate_with(transform2, 0.5));
+        let got = dbg!(transform1.interpolate_with(&transform2, 0.5));
 
         assert!(rotor_approx_equal(got.rotation, expected.rotation));
         assert!(approx_equal(got.scale, expected.scale, EPS));

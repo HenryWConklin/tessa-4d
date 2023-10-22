@@ -1,0 +1,17 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b17e884e89e2feb3072b548bd79faab792639ccf3e05d22392d6bb8cc21d0749 # shrinks to val = Bivec4 { xy: 8.607001, xz: 16.823442, xw: 9.637169, yz: -9.217691, wy: -18.447247, zw: -8.835885 }
+cc d8fffc0d764baad5aa506d7f7e81f0ef6ce0d163752c1a520f9859ae49642f90 # shrinks to rotor = Rotor4 { c: 0.00024266305, bivec: Bivec4 { xy: 0.11296316, xz: -0.7705598, xw: -0.30535364, yz: -0.40555382, wy: 0.18609636, zw: 0.17373332 }, xyzw: 0.266359 }
+cc 4545b95f814e5a832d916801b65ec36bf77899189e966f0bc317ad334d529eb9 # shrinks to bivec = Bivec4 { xy: -0.29536265, xz: 4.4289274, xw: -0.05513962, yz: 3.1646938, wy: 2.0762641, zw: -2.7496302 }
+cc 6ec484e56007206458b4931cd0c3391502712971d45380bf4d31038110f30298 # shrinks to rotor = Rotor4 { c: 0.0061929915, bivec: Bivec4 { xy: -0.1867757, xz: 0.527522, xw: 0.12932447, yz: 0.35365397, wy: 0.16796196, zw: 0.71864027 }, xyzw: 0.018601807 }
+cc 44d0bdeb634e21acd5b56e3ad06f8d02a3ee9f8c04411fb519b56cd34b3df0fa # shrinks to rotor = Rotor4 { c: -0.65486956, bivec: Bivec4 { xy: -0.4421404, xz: 0.12396512, xw: -0.12219134, yz: 0.12154261, wy: -0.124824055, zw: 0.44259638 }, xyzw: 0.34512982 }, vec = Vec4(0.0, 0.0, 0.0, 0.0)
+cc e7636e80427324d75d18be4361ea8a8d0735450e92203486bd6c796547edc79c # shrinks to rotor = Rotor4 { c: 0.0031595898, bivec: Bivec4 { xy: 0.050587602, xz: 0.035852816, xw: -0.014980309, yz: 0.026727417, wy: -0.023933426, zw: -0.037369292 }, xyzw: -0.996613 }
+cc f030d02372cc292114e6f3118a3504f91ad48b4cc87b1739d43cd04da9c425d2 # shrinks to bivec = Bivec4 { xy: 0.6935005, xz: 0.05007781, xw: 4.421668, yz: -0.6891456, wy: 3.2949245, zw: -0.98643816 }
+cc 8a2960f88ea2f7cae23b67c89075e822165954f64864ae5d4c2b7f2608362943 # shrinks to rotor = Rotor4 { c: -0.048248295, bivec: Bivec4 { xy: -0.005487834, xz: 0.22853635, xw: 0.020105204, yz: 0.01653948, wy: -0.20276299, zw: -0.029909637 }, xyzw: 0.95012766 }, vector = Vec4(-0.29238927, 0.0, 0.0, 0.0)
+cc 6efe45669a55cc690ad7d73e6750b097400d51e7fe7a0a595320224670beb4b9 # shrinks to rotor = Rotor4 { c: -0.23833682, bivec: Bivec4 { xy: 0.07298061, xz: 0.17244498, xw: 0.2982958, yz: 0.37906873, wy: 0.22850734, zw: 0.29805398 }, xyzw: -0.7310315 }
+cc 23e985007002a256fcb5ad6fc1e9ea81b8be7d436ff275490a167b319868a9f4 # shrinks to bivec = Bivec4 { xy: 0.0, xz: 0.0, xw: 0.0, yz: 0.0, wy: 0.0, zw: 0.0 }, angle = 0.0
+cc aea43c573a0f1329442b5d87ca1a6a4a595c631b8144db641dd99610ad3fa2bccc 64e8487a8faa525c64764601ee101006562a2d2387d8793ede726571ef4d3cee # shrinks to rotor = Rotor4 { c: -9.196592e-5, bivec: Bivec4 { xy: -0.43774787, xz: -0.3643585, xw: -0.3316392, yz: 0.46246448, wy: 0.1877096, zw: -0.5066556 }, xyzw: -0.24459581 }

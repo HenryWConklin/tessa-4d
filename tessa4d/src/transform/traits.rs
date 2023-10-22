@@ -35,5 +35,5 @@ impl<T: Inverse> TryInverse for T {
 /// For transforms that can be interpolated.
 pub trait InterpolateWith {
     /// Interpolate between two transforms. Implementations must support fraction between 0 and 1 inclusive.
-    fn interpolate_with(&self, other: Self, fraction: f32) -> Self;
+    fn interpolate_with(&self, other: &Self, fraction: f32) -> Self;
 }
