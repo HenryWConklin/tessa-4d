@@ -1711,7 +1711,7 @@ dependencies = [
 [[package]]
 name = "godot"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "godot-core",
  "godot-macros",
@@ -1720,7 +1720,7 @@ dependencies = [
 [[package]]
 name = "godot-bindings"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "godot4-prebuilt",
 ]
@@ -1728,7 +1728,7 @@ dependencies = [
 [[package]]
 name = "godot-codegen"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "godot-bindings",
  "godot-fmt",
@@ -1742,7 +1742,7 @@ dependencies = [
 [[package]]
 name = "godot-core"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "glam 0.23.0",
  "godot-bindings",
@@ -1753,7 +1753,7 @@ dependencies = [
 [[package]]
 name = "godot-ffi"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "godot-bindings",
  "godot-codegen",
@@ -1763,7 +1763,7 @@ dependencies = [
 [[package]]
 name = "godot-fmt"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
  "proc-macro2",
 ]
@@ -1771,8 +1771,9 @@ dependencies = [
 [[package]]
 name = "godot-macros"
 version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext?rev=a92164bb3a98108b95506f80769408583421e6dc#a92164bb3a98108b95506f80769408583421e6dc"
+source = "git+https://github.com/godot-rust/gdext?rev=9de7a8eaa414af9a4351608bc02176a160f6bbc3#9de7a8eaa414af9a4351608bc02176a160f6bbc3"
 dependencies = [
+ "godot-bindings",
  "proc-macro2",
  "quote",
  "venial",
