@@ -32,7 +32,7 @@ func run_unit_test(test_script: GDScript) -> bool:
 			instance.call(method['name'])
 			if instance.has_method('after_each'):
 				instance.after_each()
-			var test_passed = not instance._test_passed
+			var test_passed = instance._test_passed
 			var message = '\t' + test_script.resource_path + "::" + method['name'] 
 			if test_passed:
 				message += ': passed'

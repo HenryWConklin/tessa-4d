@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://dy6bpsxmcmi2o"]
 
-[sub_resource type="Transform4D" id="Transform4D_17rcj"]
+[sub_resource type="Transform4D" id="Transform4D_wvtql"]
 
 [sub_resource type="GDScript" id="GDScript_2r8j8"]
 script/source = "extends MeshInstance4D
@@ -53,7 +53,7 @@ func _on_slider_w_slice_value_changed(value):
 [node name="Node3D" type="Node3D"]
 
 [node name="MeshInstance4D" type="MeshInstance4D" parent="."]
-transform = SubResource("Transform4D_17rcj")
+transform = SubResource("Transform4D_wvtql")
 script = SubResource("GDScript_2r8j8")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
