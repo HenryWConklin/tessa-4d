@@ -54,10 +54,8 @@ pub(crate) fn get_local_transform4d_for_global(
     let parent_tessa: RotateScaleTranslate4<Vector4> = get_parent_global_transform4d(node)
         .unwrap_or_default()
         .into();
-    parent_tessa
-        .inverse()
-        .compose((*target_global.bind()).into())
-        .into()
+    let target_tessa: RotateScaleTranslate4<Vector4> = (*target_global.bind()).into();
+    target_tessa.compose(parent_tessa.inverse()).into()
 }
 
 /// Returns the global transform for a node, handling the obnoxious default-null logic that godot expects.
@@ -66,7 +64,10 @@ pub(crate) fn get_global_transform(
     local: Option<&Gd<Transform4D>>,
 ) -> Option<Gd<Transform4D>> {
     local.map(|transform| {
-        let parent_transform = get_parent_global_transform4d(node).unwrap_or_default();
-        parent_transform.composed(transform.clone())
+        let parent_transform: RotateScaleTranslate4<Vector4> = get_parent_global_transform4d(node)
+            .unwrap_or_default()
+            .into();
+        let tessa_transform: RotateScaleTranslate4<Vector4> = (*transform.bind()).into();
+        Gd::new(tessa_transform.compose(parent_transform).into())
     })
 }
