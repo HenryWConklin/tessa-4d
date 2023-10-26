@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://dpgku3ft5cbho"]
 
-[ext_resource type="TetrahedronMesh4D" path="res://tests/tesseract_mesh.tres" id="1_faerl"]
+[ext_resource type="TetrahedronMesh4D" path="res://tesseract_mesh.tres" id="1_utsw2"]
 
 [sub_resource type="GDScript" id="GDScript_hecch"]
 script/source = "extends SceneTest
@@ -31,7 +31,7 @@ func _ready():
 script = SubResource("GDScript_hecch")
 
 [node name="MeshInstance4D" type="MeshInstance4D" parent="."]
-mesh = ExtResource("1_faerl")
+mesh = ExtResource("1_utsw2")
 transform = SubResource("Transform4D_mmguc")
 
 [node name="Camera3D" type="Camera3D" parent="."]

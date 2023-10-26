@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3 uid="uid://nn8j8rv33fgl"]
+
+[ext_resource type="TetrahedronMesh4D" path="res://tesseract_mesh.tres" id="1_77466"]
+
+[sub_resource type="Transform4D" id="Transform4D_ggahh"]
+_rotation = PackedFloat32Array(0.936177, 0.351529, 0, 0, 0, 0, 0, 0)
+
+[sub_resource type="Transform4D" id="Transform4D_s2wgy"]
+position = Vector4(0, 1.945, 0, 0)
+
+[node name="parent_transform" type="Node"]
+
+[node name="Node4D" type="Node4D" parent="."]
+transform = SubResource("Transform4D_ggahh")
+
+[node name="MeshInstance4D" type="MeshInstance4D" parent="Node4D"]
+mesh = ExtResource("1_77466")
+transform = SubResource("Transform4D_s2wgy")
