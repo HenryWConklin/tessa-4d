@@ -1,5 +1,6 @@
 pub mod mesh;
 pub mod transform;
+pub(crate) mod util;
 
 use godot::prelude::*;
 

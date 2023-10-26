@@ -19,17 +19,20 @@ func _ready():
 	$MeshInstance4D.transform.set_rotor(Rotor4D.from_bivector_angles(rotation))
 	await get_tree().process_frame
 	passed = ScreenshotCompare.take_screenshot(\"test_meshinstance4d_render_xyxw\", get_viewport()) and passed
+	$MeshInstance4D.transform.position.w = .5
+	await get_tree().process_frame
+	passed = ScreenshotCompare.take_screenshot(\"test_meshinstance4d_renter_xyxw_w\", get_viewport()) and passed
 	emit_signal(\"finished\", passed)
 "
 
-[sub_resource type="Transform4D" id="Transform4D_qjl3v"]
+[sub_resource type="Transform4D" id="Transform4D_mmguc"]
 
 [node name="Node" type="Node"]
 script = SubResource("GDScript_hecch")
 
 [node name="MeshInstance4D" type="MeshInstance4D" parent="."]
 mesh = ExtResource("1_faerl")
-transform = SubResource("Transform4D_qjl3v")
+transform = SubResource("Transform4D_mmguc")
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.914197, 0.405269, 0, -0.405269, 0.914197, 0, 1.08598, 2.05035)

@@ -7,6 +7,8 @@ use tessa4d::transform::{
     traits::{Compose, InterpolateWith, Inverse, Transform},
 };
 
+use crate::util::{get_global_transform, get_local_transform4d_for_global, PropertyPlaceholder};
+
 #[derive(GodotClass, Clone, Copy, Debug)]
 #[class(base=RefCounted,init)]
 pub struct Bivector4D {
@@ -266,5 +268,51 @@ impl From<RotateScaleTranslate4<Vector4>> for Transform4D {
 impl Default for Transform4D {
     fn default() -> Self {
         Self::from(RotateScaleTranslate4::default())
+    }
+}
+
+#[allow(dead_code)] // global_transform never read, but needed for GodotClass derive.
+#[derive(GodotClass, Debug)]
+#[class(init, base=Node)]
+struct Node4D {
+    #[base]
+    node: Base<Node>,
+
+    #[export]
+    #[var(set=set_transform, get, usage_flags=[PROPERTY_USAGE_DEFAULT, PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT])]
+    transform: Option<Gd<Transform4D>>,
+
+    #[var(set=set_global_transform, get=get_global_transform, usage_flags=[PROPERTY_USAGE_NONE])]
+    global_transform: PropertyPlaceholder<Option<Gd<Transform4D>>>,
+}
+
+#[godot_api]
+impl Node4D {
+    #[func]
+    pub fn set_transform(&mut self, value: Variant) {
+        // This custom setter is required to make sure that the transform is never null. Can't use a getter
+        // because the Godot editor uses a static instance for the "default" value, so resetting the transform doesn't
+        // behave as expected.
+        // TODO(https://github.com/godotengine/godot/issues/83108) Remove if fixed
+        if let Ok(val) = value.try_to() {
+            self.transform = val
+        }
+        self.ensure_transform_present()
+    }
+
+    #[func]
+    pub fn set_global_transform(&mut self, value: Gd<Transform4D>) {
+        self.transform = Some(Gd::new(get_local_transform4d_for_global(
+            &self.node, &value,
+        )))
+    }
+
+    #[func]
+    pub fn get_global_transform(&self) -> Option<Gd<Transform4D>> {
+        get_global_transform(&self.node, self.transform.as_ref())
+    }
+
+    fn ensure_transform_present(&mut self) {
+        self.transform.get_or_insert_with(Gd::new_default);
     }
 }

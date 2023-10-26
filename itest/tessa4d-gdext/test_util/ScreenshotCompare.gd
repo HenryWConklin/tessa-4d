@@ -17,6 +17,8 @@ static func take_screenshot(name:String, viewport: Viewport, max_root_mean_squar
 	if _record_screenshots():
 		candidate_image.save_png(SCREENSHOT_DIR + "/" + name + GROUND_TRUTH_SUFFIX)
 		return true
+
+	candidate_image.save_png(candidate_path)
 	if not FileAccess.file_exists(ground_truth_path):
 		push_error("Ground truth image for ", name, " does not exist. Run with ", RECORD_FLAG, " to record ground truth images.")
 		return false

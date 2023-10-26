@@ -1,6 +1,6 @@
 [gd_scene load_steps=4 format=3 uid="uid://dy6bpsxmcmi2o"]
 
-[sub_resource type="Transform4D" id="Transform4D_17rcj"]
+[sub_resource type="Transform4D" id="Transform4D_wvtql"]
 
 [sub_resource type="GDScript" id="GDScript_2r8j8"]
 script/source = "extends MeshInstance4D
@@ -44,50 +44,65 @@ func _on_slider_wy_value_changed(value):
 
 func _on_slider_zw_value_changed(value):
 	rotation_bivec.zw = deg_to_rad(value)
+
+
+func _on_slider_w_slice_value_changed(value):
+	tesseract.transform.position.w = value
 "
 
 [node name="Node3D" type="Node3D"]
 
 [node name="MeshInstance4D" type="MeshInstance4D" parent="."]
-transform = SubResource("Transform4D_17rcj")
+transform = SubResource("Transform4D_wvtql")
 script = SubResource("GDScript_2r8j8")
 
-[node name="GridContainer" type="GridContainer" parent="." node_paths=PackedStringArray("tesseract")]
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="GridContainer" type="GridContainer" parent="VBoxContainer" node_paths=PackedStringArray("tesseract")]
+layout_mode = 2
 columns = 3
 script = SubResource("GDScript_2h6b4")
-tesseract = NodePath("../MeshInstance4D")
+tesseract = NodePath("../../MeshInstance4D")
 
-[node name="SliderXY" type="HSlider" parent="GridContainer"]
+[node name="SliderXY" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 360.0
 
-[node name="SliderXZ" type="HSlider" parent="GridContainer"]
+[node name="SliderXZ" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 360.0
 
-[node name="SliderYZ" type="HSlider" parent="GridContainer"]
+[node name="SliderYZ" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 360.0
 
-[node name="SliderXW" type="HSlider" parent="GridContainer"]
+[node name="SliderXW" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 max_value = 360.0
 
-[node name="SliderWY" type="HSlider" parent="GridContainer"]
+[node name="SliderWY" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 max_value = 360.0
 
-[node name="SliderZW" type="HSlider" parent="GridContainer"]
+[node name="SliderZW" type="HSlider" parent="VBoxContainer/GridContainer"]
 layout_mode = 2
 max_value = 360.0
+
+[node name="SliderWSlice" type="VSlider" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 3
+min_value = -1.0
+max_value = 1.0
+step = 0.01
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.880453, 0.474134, 0, -0.474134, 0.880453, 0, 1.70767, 3.01677)
@@ -95,9 +110,10 @@ transform = Transform3D(1, 0, 0, 0, 0.880453, 0.474134, 0, -0.474134, 0.880453, 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.707107, 0, -0.707107, 0.5, 0.707107, 0.5, 0.5, -0.707107, 0.5, -2, 2, 3.01677)
 
-[connection signal="value_changed" from="GridContainer/SliderXY" to="GridContainer" method="_on_slider_xy_value_changed"]
-[connection signal="value_changed" from="GridContainer/SliderXZ" to="GridContainer" method="_on_slider_xz_value_changed"]
-[connection signal="value_changed" from="GridContainer/SliderYZ" to="GridContainer" method="_on_slider_yz_value_changed"]
-[connection signal="value_changed" from="GridContainer/SliderXW" to="GridContainer" method="_on_slider_xw_value_changed"]
-[connection signal="value_changed" from="GridContainer/SliderWY" to="GridContainer" method="_on_slider_wy_value_changed"]
-[connection signal="value_changed" from="GridContainer/SliderZW" to="GridContainer" method="_on_slider_zw_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderXY" to="VBoxContainer/GridContainer" method="_on_slider_xy_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderXZ" to="VBoxContainer/GridContainer" method="_on_slider_xz_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderYZ" to="VBoxContainer/GridContainer" method="_on_slider_yz_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderXW" to="VBoxContainer/GridContainer" method="_on_slider_xw_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderWY" to="VBoxContainer/GridContainer" method="_on_slider_wy_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/GridContainer/SliderZW" to="VBoxContainer/GridContainer" method="_on_slider_zw_value_changed"]
+[connection signal="value_changed" from="VBoxContainer/SliderWSlice" to="VBoxContainer/GridContainer" method="_on_slider_w_slice_value_changed"]

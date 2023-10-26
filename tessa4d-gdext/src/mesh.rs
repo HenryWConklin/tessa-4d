@@ -8,7 +8,10 @@ use tessa4d::{
     transform::rotate_scale_translate4::RotateScaleTranslate4,
 };
 
-use crate::transform::Transform4D;
+use crate::{
+    transform::Transform4D,
+    util::{get_global_transform, get_local_transform4d_for_global, PropertyPlaceholder},
+};
 
 #[derive(GodotClass)]
 #[class(base=Resource)]
@@ -137,6 +140,7 @@ impl From<TetrahedronMesh4D> for TetrahedronMesh<Vertex4<Vector4>> {
     }
 }
 
+#[allow(dead_code)] // global_transform is "dead code" because it's used for the GodotClass macro
 #[derive(GodotClass, Debug)]
 #[class(base=Node, tool)]
 pub struct MeshInstance4D {
@@ -147,6 +151,9 @@ pub struct MeshInstance4D {
     #[export]
     #[var(set=set_transform, get, usage_flags=[PROPERTY_USAGE_DEFAULT, PROPERTY_USAGE_EDITOR_INSTANTIATE_OBJECT])]
     transform: Option<Gd<Transform4D>>,
+
+    #[var(set=set_global_transform, get=get_global_transform, usage_flags=[PROPERTY_USAGE_NONE])]
+    global_transform: PropertyPlaceholder<Option<Gd<Transform4D>>>,
 
     mesh_instance: Gd<MeshInstance3D>,
 }
@@ -159,6 +166,7 @@ impl NodeVirtual for MeshInstance4D {
             mesh: None,
             transform: None,
             mesh_instance: MeshInstance3D::new_alloc(),
+            global_transform: PropertyPlaceholder::new(),
         };
         instance
             .node
@@ -195,13 +203,23 @@ impl MeshInstance4D {
         self.ensure_transform_present()
     }
 
+    #[func]
+    pub fn set_global_transform(&mut self, value: Gd<Transform4D>) {
+        self.transform = Some(Gd::new(get_local_transform4d_for_global(
+            &self.node, &value,
+        )))
+    }
+
+    #[func]
+    pub fn get_global_transform(&self) -> Option<Gd<Transform4D>> {
+        get_global_transform(&self.node, self.transform.as_ref())
+    }
+
     fn update_mesh(&mut self) {
         if let Some(mesh) = self.mesh.clone() {
-            self.mesh_instance.set_mesh(
-                mesh.bind()
-                    .cross_section(self.transform.clone().unwrap())
-                    .upcast(),
-            )
+            let transform = self.get_global_transform().unwrap();
+            self.mesh_instance
+                .set_mesh(mesh.bind().cross_section(transform).upcast())
         }
     }
 
