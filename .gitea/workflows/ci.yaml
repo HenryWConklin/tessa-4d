@@ -1,0 +1,68 @@
+name: CI
+on: 
+  push:
+    branches:
+      - main
+  pull_request:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  checks:
+    name: "Unit tests and lints"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install bevy deps
+        run: apt-get update && apt-get install -y libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "ci"
+      - name: Run unit tests and lints (./run-checks.sh)
+        run: ./run-checks.sh
+  itests:
+    name: "Integration tests"
+    runs-on: ubuntu-latest
+    container: 
+      image: gitea.okaymonkey.com/actions/xvfb-run:v1.0.0
+    steps:
+      - name: Install git-lfs
+        run: apt-get update && apt-get install -y git-lfs
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      # From https://gitea.com/gitea/act_runner/issues/164#issuecomment-739652, lfs with the checkout action is broken for some reason
+      - name: Checkout LFS
+        run: |
+          UrlBase=${{ gitea.server_url }}; \
+          UrlLfsBase=$UrlBase/${{ gitea.repository }}.git/info/lfs/objects; \
+          Auth=`/usr/bin/git config --get --local http.$UrlBase/.extraheader`; \
+          /usr/bin/git config --local http.${UrlLfsBase}/batch.extraheader "$Auth"; \
+          /usr/bin/git config --local http.${UrlLfsBase}/.extraheader ''
+
+          git config --local lfs.transfer.maxretries 1
+
+          /usr/bin/git lfs fetch
+          /usr/bin/git lfs checkout
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: "Install Godot"
+        uses: "https://${{secrets.REPO_ACCESS_TOKEN}}@gitea.okaymonkey.com/actions/install-godot@main"
+        with:
+          godot-version: 4.1.2
+      - name: "Run integration tests"
+        run: xvfb-run -s "-screen 0 1280x1024x24" ./run-itests.sh
+      - name: "Archive itest screenshots"
+        uses: "actions/upload-artifact@v3"
+        with:
+          name: "itest-screenshots"
+          path: |
+            itest/tessa4d-gdext/tests/screenshots/*
+          retention-days: 60
