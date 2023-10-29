@@ -5,12 +5,13 @@ CARGO_PROJECTS=('tessa4d' 'tessa4d-bevy' 'tessa4d-gdext')
 
 # Run tests first so formatting/lints don't block it.
 for project in "${CARGO_PROJECTS[@]}"; do
+  echo "Test ${project}"
   cargo test --package "$project"
 done
 
-rustup component add clippy
-rustup component add rustfmt
 for project in "${CARGO_PROJECTS[@]}"; do
-  cargo clippy --package "$project"
+  echo "Clippy ${project}"
+  cargo clippy --package "$project" --no-deps
+  echo "Rustfmt ${project}"
   cargo fmt --check --package "$project"
 done

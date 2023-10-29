@@ -22,4 +22,5 @@ RUN wget -O /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/
   && rm /tmp/godot.zip
 
 
+RUN rustup component add clippy && rustup component add rustfmt
 RUN useradd -ms /bin/bash -u 1000 user

@@ -2,7 +2,6 @@
 #![cfg(feature = "godot4")]
 
 use godot::{
-    bind::property::ExportInfo,
     engine::{mesh::PrimitiveType, ArrayMesh, SurfaceTool},
     prelude::*,
 };
@@ -169,8 +168,8 @@ impl Property for Rotor4 {
 }
 
 impl Export for Rotor4 {
-    fn default_export_info() -> godot::bind::property::ExportInfo {
-        ExportInfo::with_hint_none()
+    fn default_export_info() -> godot::bind::property::PropertyHintInfo {
+        Self::Intermediate::default_export_info()
     }
 }
 
@@ -230,8 +229,8 @@ impl Property for TetrahedronMesh4D<Vector4> {
 }
 
 impl Export for TetrahedronMesh4D<Vector4> {
-    fn default_export_info() -> ExportInfo {
-        ExportInfo::with_hint_none()
+    fn default_export_info() -> godot::bind::property::PropertyHintInfo {
+        Self::Intermediate::default_export_info()
     }
 }
 

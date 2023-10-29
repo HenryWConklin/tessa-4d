@@ -2,6 +2,9 @@ pipeline {
     agent {
         dockerfile { filename 'Dockerfile.jenkins' }
     }
+    environment {
+        CARGO_HOME = "${WORKSPACE}/.cargo"
+    }
     stages {
         stage('CI') {
             parallel {
@@ -18,6 +21,11 @@ pipeline {
                     }
                 }
             }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'itest/tessa4d-gdext/tests/screenshots/*.png', fingerprint: true
         }
     }
 }
