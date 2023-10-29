@@ -2,6 +2,9 @@ pipeline {
     agent {
         dockerfile { filename 'Dockerfile.jenkins' }
     }
+    environment {
+        CARGO_HOME = "${WORKSPACE}/.cargo"
+    }
     stages {
         stage('CI') {
             parallel {
