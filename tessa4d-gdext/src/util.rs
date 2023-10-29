@@ -31,7 +31,7 @@ impl<T: Property> Property for PropertyPlaceholder<T> {
 }
 
 impl<T: Export> Export for PropertyPlaceholder<T> {
-    fn default_export_info() -> godot::bind::property::ExportInfo {
+    fn default_export_info() -> godot::bind::property::PropertyHintInfo {
         T::default_export_info()
     }
 }
