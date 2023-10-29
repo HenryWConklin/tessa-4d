@@ -11,6 +11,6 @@ done
 rustup component add clippy
 rustup component add rustfmt
 for project in "${CARGO_PROJECTS[@]}"; do
-  cargo clippy --package "$project"
+  cargo clippy --package "$project" --no-deps
   cargo fmt --check --package "$project"
 done
