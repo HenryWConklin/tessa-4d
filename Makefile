@@ -12,6 +12,9 @@ build-gdext: target/debug/libtessa4d_gdext.so
 build-bevy: 
 	cargo build --package tessa4d-bevy
 
+clean:
+	cargo clean
+
 check: check-tessa check-gdext check-bevy
 
 check-tessa:
@@ -30,10 +33,12 @@ check-bevy:
 itest: itest-gdext
 
 itest-gdext: $(GDEXT_LIBS)
+# Open in the editor first to update the .godot dir
 	godot --editor --quit --path itest/tessa4d-gdext
 	godot --script test_entrypoint.gd --fixed-fps 60 --windowed --resolution 1280x720 --path itest/tessa4d-gdext
 
 itest-gdext-record-screenshots: $(GDEXT_LIBS)
+# Open in the editor first to update the .godot dir
 	godot --editor --quit --path itest/tessa4d-gdext
 	godot --script test_entrypoint.gd --fixed-fps 60 --windowed --resolution 1280x720 --path itest/tessa4d-gdext -- --record-screenshots
 
