@@ -29,6 +29,7 @@ check-gdext:
 check-bevy:
 	cargo clippy --package tessa4d-bevy
 	cargo fmt --check --package tessa4d-bevy
+	cargo test --package tessa4d-bevy
 
 itest: itest-gdext
 

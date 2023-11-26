@@ -234,7 +234,18 @@ impl Export for TetrahedronMesh4D<Vector4> {
     }
 }
 
-pub fn into_gdmesh_arrays(mut value: TriangleMesh3D<Vector3>) -> Array<Variant> {
+impl From<TriangleMesh3D<Vector3>> for Gd<ArrayMesh> {
+    fn from(value: TriangleMesh3D<Vector3>) -> Self {
+        let mut mesh = ArrayMesh::new();
+        if !value.simplexes.is_empty() && !value.simplexes.is_empty() {
+            let arrays = into_gdmesh_arrays(value);
+            mesh.add_surface_from_arrays(PrimitiveType::PRIMITIVE_TRIANGLES, arrays);
+        }
+        mesh
+    }
+}
+
+fn into_gdmesh_arrays(mut value: TriangleMesh3D<Vector3>) -> Array<Variant> {
     value.invert();
     let mut surface_tool = SurfaceTool::new();
     surface_tool.begin(PrimitiveType::PRIMITIVE_TRIANGLES);
@@ -251,17 +262,6 @@ pub fn into_gdmesh_arrays(mut value: TriangleMesh3D<Vector3>) -> Array<Variant> 
     surface_tool.generate_normals();
 
     surface_tool.commit_to_arrays()
-}
-
-impl From<TriangleMesh3D<Vector3>> for Gd<ArrayMesh> {
-    fn from(value: TriangleMesh3D<Vector3>) -> Self {
-        let mut mesh = ArrayMesh::new();
-        if !value.simplexes.is_empty() && !value.simplexes.is_empty() {
-            let arrays = into_gdmesh_arrays(value);
-            mesh.add_surface_from_arrays(PrimitiveType::PRIMITIVE_TRIANGLES, arrays);
-        }
-        mesh
-    }
 }
 
 fn get_or_default<T: Copy + Default>(vals: &[T], i: usize) -> T {

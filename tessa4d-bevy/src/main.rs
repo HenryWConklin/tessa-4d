@@ -1,48 +1,19 @@
-use std::f32::consts::{FRAC_PI_2, FRAC_PI_8};
+use std::f32::consts::FRAC_PI_8;
 
-use bevy::{
-    pbr::wireframe::{Wireframe, WireframePlugin},
-    prelude::*,
-    render::{
-        mesh::Indices,
-        render_resource::PrimitiveTopology,
-        settings::{WgpuFeatures, WgpuSettings},
-        RenderPlugin,
-    },
-    time::Time,
-    DefaultPlugins,
-};
-use tessa4d::{
-    integrations::bevy::*,
-    mesh::ops::CrossSection,
-    transform::rotor4::{Bivec4, Rotor4},
+use bevy::{prelude::*, time::Time, DefaultPlugins};
+use tessa4d::transform::rotor4::{Bivec4, Rotor4};
+use tessa4d_bevy::{
+    mesh::{cross_section_tetmesh4d, TessaMeshPlugin, Tetmesh4dPbrBundle, TetrahedronMesh4D},
+    transform::{Compose, Transform4D, Transform4DPlugin},
 };
 
 #[derive(Component)]
-struct Tesseract(Handle<TetrahedronMesh4D>);
-
-fn to_bevy_mesh(mesh: tessa4d::mesh::TriangleMesh3D<Vec3>) -> Mesh {
-    let mut result = Mesh::new(PrimitiveTopology::TriangleList);
-    result.insert_attribute(
-        Mesh::ATTRIBUTE_POSITION,
-        mesh.vertices
-            .into_iter()
-            .map(|v| [v.position.x, v.position.y, v.position.z])
-            .collect::<Vec<_>>(),
-    );
-    result.set_indices(Some(Indices::U32(
-        mesh.simplexes
-            .into_iter()
-            .flat_map(|triangle| triangle.map(|i| i as u32))
-            .collect(),
-    )));
-    result
-}
+struct Tesseract;
 
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut tetmeshes: ResMut<Assets<TetrahedronMesh4D>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     commands.spawn(Camera3dBundle {
@@ -56,142 +27,70 @@ fn setup(
         ..Default::default()
     });
 
-    let tetmesh = tessa4d::mesh::TetrahedronMesh4D::tesseract_cube(1.0);
+    let tetmesh = TetrahedronMesh4D(tessa4d::mesh::TetrahedronMesh4D::tesseract_cube(1.0));
     let tetmesh_handle = tetmeshes.add(tetmesh.clone());
-    let mesh = tetmesh.cross_section();
-    let mesh_handle = meshes.add(to_bevy_mesh(mesh));
-    let material = StandardMaterial {
-        base_color: Color::RED,
-        cull_mode: None,
-        ..Default::default()
-    };
+    let material = Color::RED.into();
     let material_handle = materials.add(material);
+    let mesh_handle = meshes.add(cross_section_tetmesh4d(tetmesh, &Transform4D::IDENTITY));
     commands.spawn((
-        PbrBundle {
-            mesh: mesh_handle,
+        Tetmesh4dPbrBundle {
+            mesh: tetmesh_handle,
+            cross_section_mesh: mesh_handle,
             material: material_handle,
             ..Default::default()
         },
-        Wireframe,
-        Tesseract(tetmesh_handle),
-        Transform4D::IDENTITY.rotated(Rotor4::from_bivec_angles(Bivec4 {
-            xw: FRAC_PI_2,
-            ..Bivec4::ZERO
-        })),
+        Tesseract,
     ));
 }
 
-fn tesseract_crossection(
-    tetmeshes: Res<Assets<TetrahedronMesh4D>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(&Tesseract, &Transform4D, &Handle<Mesh>)>,
-) {
-    for (tesseract, transform, mesh_handle) in query.iter() {
-        tetmeshes.get(&tesseract.0).map(|tetmesh| {
-            let mut tetmesh = tetmesh.clone();
-            tetmesh.apply_transform(transform);
-            let mut mesh = to_bevy_mesh(tetmesh.cross_section());
-            mesh.duplicate_vertices();
-            mesh.compute_flat_normals();
-            meshes.set(mesh_handle.clone(), mesh)
-        });
-    }
-}
-
 const ROTATE_SPEED: f32 = FRAC_PI_8;
+const LINEAR_SPEED: f32 = 0.5;
 fn tesseract_rotate(
     mut query: Query<&mut Transform4D, With<Tesseract>>,
     time: Res<Time>,
     keys: Res<Input<KeyCode>>,
 ) {
     for mut transform in query.iter_mut() {
-        if keys.pressed(KeyCode::Q) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xy: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
+        let speed = ROTATE_SPEED * time.delta_seconds();
+        let angle_diff = Bivec4 {
+            xy: get_key_axis(&keys, KeyCode::Q, KeyCode::A),
+            xz: get_key_axis(&keys, KeyCode::W, KeyCode::S),
+            yz: get_key_axis(&keys, KeyCode::E, KeyCode::D),
+            xw: get_key_axis(&keys, KeyCode::R, KeyCode::F),
+            wy: get_key_axis(&keys, KeyCode::T, KeyCode::G),
+            zw: get_key_axis(&keys, KeyCode::Y, KeyCode::H),
         }
-        if keys.pressed(KeyCode::A) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xy: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::W) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xz: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::S) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xz: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::E) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                yz: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::D) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                yz: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::R) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xw: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-            dbg!(transform.rotation.log());
-        }
-        if keys.pressed(KeyCode::F) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                xw: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::T) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                wy: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::G) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                wy: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::Y) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                zw: ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
-        if keys.pressed(KeyCode::H) {
-            *transform = transform.rotated(Rotor4::from_bivec_angles(Bivec4 {
-                zw: -ROTATE_SPEED * time.delta_seconds(),
-                ..Bivec4::ZERO
-            }));
-        }
+        .scaled(speed);
+        let translation_diff = Vec4::new(
+            get_key_axis(&keys, KeyCode::Right, KeyCode::Left),
+            0.0,
+            0.0,
+            get_key_axis(&keys, KeyCode::Down, KeyCode::Up),
+        ) * (LINEAR_SPEED * time.delta_seconds());
+        transform.rotation = transform
+            .rotation
+            .compose(Rotor4::from_bivec_angles(angle_diff));
+        transform.translation += translation_diff;
     }
+}
+
+fn get_key_axis(keys: &Input<KeyCode>, positive: KeyCode, negative: KeyCode) -> f32 {
+    let mut val = 0.0;
+    if keys.pressed(positive) {
+        val += 1.0;
+    }
+    if keys.pressed(negative) {
+        val -= 1.0;
+    }
+    val
 }
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(RenderPlugin {
-            wgpu_settings: WgpuSettings {
-                features: WgpuFeatures::POLYGON_MODE_LINE,
-                ..Default::default()
-            },
-        }))
-        .add_plugins(WireframePlugin)
-        .add_asset::<TetrahedronMesh4D>()
+        .add_plugins(DefaultPlugins)
+        .add_plugins(TessaMeshPlugin)
+        .add_plugins(Transform4DPlugin)
         .add_systems(Startup, setup)
-        .add_systems(Update, (tesseract_crossection, tesseract_rotate))
+        .add_systems(Update, tesseract_rotate)
         .run();
 }

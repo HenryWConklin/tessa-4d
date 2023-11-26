@@ -1,4 +1,4 @@
-pub mod integrations;
+mod integrations;
 pub mod linear_algebra;
 pub mod mesh;
 pub mod transform;

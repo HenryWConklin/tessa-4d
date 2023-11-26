@@ -10,7 +10,6 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "bevy", derive(bevy::reflect::Reflect))]
 pub struct Vertex2<V: Vector2> {
     pub position: V,
 }
@@ -95,12 +94,6 @@ impl<V: Vector4, T: Transform<V>> Transform<Vertex4<V>> for T {
 
 /// Generic mesh made of N-simplexes. e.g. a 3-simplex is a triangle, a 4-simplex is a tetrahedron.
 #[derive(Clone, Debug)]
-#[cfg_attr(
-    feature = "bevy",
-    derive(bevy::reflect::Reflect),
-    derive(bevy::reflect::TypeUuid),
-    uuid = "746469f2-d902-469a-9af2-534a7ee4112c"
-)]
 pub struct SimplexMesh<V, const N: usize> {
     /// Unique vertices in the mesh.
     /// Uniqueness is not required, but it is more efficient.
