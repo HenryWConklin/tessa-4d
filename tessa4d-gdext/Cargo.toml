@@ -9,4 +9,4 @@ crate-type = ["cdylib"]
 
 [dependencies]
 tessa4d = { path = "../tessa4d", features = ["godot4"] }
-godot = { git = "https://github.com/godot-rust/gdext" }
+godot = { workspace = true }

@@ -8,4 +8,4 @@ resolver = "2"
 
 [dependencies]
 tessa4d = { path = "../tessa4d", features = ["bevy"] }
-bevy = { version = "0.12.0" }
+bevy = { workspace = true }
