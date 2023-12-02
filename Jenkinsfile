@@ -59,7 +59,19 @@ pipeline {
                     steps {
                         // Xvfb allows running X without an acutal display
                         // so that we can take screenshots and test rendering in itests.
-                        sh 'pulseaudio & xvfb-run -s "-screen 0 1280x1024x24" make itest-gdext'
+                        sh 'xvfb-run -s "-screen 0 1280x1024x24" make itest-gdext'
+                    }
+                }
+                stage('itest tessa4d-bevy') {
+                    agent {
+                        docker {
+                            image 'gitea.okaymonkey.com/cicd/bevy-itest:latest'
+                            alwaysPull true
+                            reuseNode true
+                        }
+                    }
+                    steps {
+                        sh 'xvfb-run -s "-screen 0 1280x1024x24" make itest-bevy'
                     }
                 }
             }
@@ -68,6 +80,7 @@ pipeline {
     post {
         always {
             archiveArtifacts artifacts: 'itest/tessa4d-gdext/tests/screenshots/*.png', fingerprint: true
+            archiveArtifacts artifacts: 'tessa4d-bevy/assets/screenshots/**/*.png', fingerprint: true
         }
     }
 }

@@ -1,4 +1,6 @@
-.PHONY: build check itest build-tessa build-gdext build-bevy check-tessa check-gdext check-bevy itest-gdext
+.PHONY: build build-tessa build-gdext build-bevy \
+	check check-tessa check-gdext check-bevy \
+	itest itest-gdext itest-bevy
 
 GDEXT_LIBS=target/debug/libtessa4d_gdext.so
 
@@ -18,7 +20,6 @@ clean:
 check: check-tessa check-gdext check-bevy
 
 check-tessa:
-	cargo test --package tessa4d
 	cargo clippy --package tessa4d
 	cargo fmt --check --package tessa4d
 
@@ -29,9 +30,8 @@ check-gdext:
 check-bevy:
 	cargo clippy --package tessa4d-bevy
 	cargo fmt --check --package tessa4d-bevy
-	cargo test --package tessa4d-bevy
 
-itest: itest-gdext
+itest: itest-gdext itest-bevy
 
 itest-gdext: $(GDEXT_LIBS)
 # Open in the editor first to update the .godot dir
@@ -42,6 +42,9 @@ itest-gdext-record-screenshots: $(GDEXT_LIBS)
 # Open in the editor first to update the .godot dir
 	godot --editor --quit --path itest/tessa4d-gdext
 	godot --script test_entrypoint.gd --fixed-fps 60 --windowed --resolution 1280x720 --path itest/tessa4d-gdext -- --record-screenshots
+
+itest-bevy:
+	cargo test --package tessa4d-bevy
 
 ### Actual files
 

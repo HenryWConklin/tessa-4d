@@ -8,4 +8,12 @@ resolver = "2"
 
 [dependencies]
 tessa4d = { path = "../tessa4d", features = ["bevy"] }
-bevy = { version = "0.12.0" }
+bevy = { workspace = true }
+
+[dev-dependencies]
+image = {version = "*"}
+
+[[test]]
+name = "tesseract_render"
+path = "integration/tesseract_render.rs"
+harness = false
