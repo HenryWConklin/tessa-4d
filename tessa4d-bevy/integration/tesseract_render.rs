@@ -26,8 +26,14 @@ fn setup(
         ..Default::default()
     });
 
-    commands.spawn(PointLightBundle {
-        transform: bevy::prelude::Transform::from_xyz(4.0, 8.0, 4.0),
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            illuminance: 10000.0,
+            shadows_enabled: false,
+            ..Default::default()
+        },
+        transform: bevy::prelude::Transform::from_xyz(4.0, 8.0, 4.0)
+            .looking_at(Vec3::ZERO, Vec3::Y),
         ..Default::default()
     });
 
