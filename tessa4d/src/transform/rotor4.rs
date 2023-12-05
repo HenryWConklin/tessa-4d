@@ -451,6 +451,30 @@ impl Bivec4 {
         wy: 1.0,
         zw: 1.0,
     };
+    pub const XY: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
+    pub const YZ: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
+    pub const XZ: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
+    pub const XW: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
+    pub const WY: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
+    pub const ZW: Self = Self {
+        xy: 1.0,
+        ..Self::ZERO
+    };
 
     /// Scales the bivector by a scalar.
     pub fn scaled(&self, scale: f32) -> Self {
