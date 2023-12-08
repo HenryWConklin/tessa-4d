@@ -456,23 +456,23 @@ impl Bivec4 {
         ..Self::ZERO
     };
     pub const YZ: Self = Self {
-        xy: 1.0,
+        yz: 1.0,
         ..Self::ZERO
     };
     pub const XZ: Self = Self {
-        xy: 1.0,
+        xz: 1.0,
         ..Self::ZERO
     };
     pub const XW: Self = Self {
-        xy: 1.0,
+        xw: 1.0,
         ..Self::ZERO
     };
     pub const WY: Self = Self {
-        xy: 1.0,
+        wy: 1.0,
         ..Self::ZERO
     };
     pub const ZW: Self = Self {
-        xy: 1.0,
+        zw: 1.0,
         ..Self::ZERO
     };
 
