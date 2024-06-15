@@ -723,7 +723,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "752764558a1f429c20704c3b836a019fa308961c43fdfef4f08e339d456c96be"
 dependencies = [
- "glam 0.24.2",
+ "glam",
  "serde",
 ]
 
@@ -733,7 +733,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b596c41a56f2268ec7cde560edc588bc7b5886e4b49c8b27c4dcc9f7c743424c"
 dependencies = [
- "glam 0.24.2",
+ "glam",
 ]
 
 [[package]]
@@ -780,7 +780,7 @@ dependencies = [
  "bevy_utils",
  "downcast-rs",
  "erased-serde",
- "glam 0.24.2",
+ "glam",
  "serde",
  "smallvec",
  "smol_str",
@@ -1535,7 +1535,7 @@ checksum = "8fce2eeef77fd4a293a54b62aa00ac9daebfbcda4bf8998c5a815635b004aa1c"
 dependencies = [
  "const_panic",
  "encase_derive",
- "glam 0.24.2",
+ "glam",
  "thiserror",
 ]
 
@@ -1834,12 +1834,6 @@ checksum = "6fb8d784f27acf97159b40fc4db5ecd8aa23b9ad5ef69cdd136d3bc80665f0c0"
 
 [[package]]
 name = "glam"
-version = "0.23.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e4afd9ad95555081e109fe1d21f2a30c691b5f0919c67dfa690a2e1eb6bd51c"
-
-[[package]]
-name = "glam"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5418c17512bdf42730f9032c74e1ae39afc408745ebb2acf72fbc4691c17945"
@@ -1911,82 +1905,6 @@ dependencies = [
  "approx",
  "xi-unicode",
 ]
-
-[[package]]
-name = "godot"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "godot-core",
- "godot-macros",
-]
-
-[[package]]
-name = "godot-bindings"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "godot4-prebuilt",
-]
-
-[[package]]
-name = "godot-codegen"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "godot-bindings",
- "godot-fmt",
- "heck",
- "nanoserde",
- "proc-macro2",
- "quote",
- "regex",
-]
-
-[[package]]
-name = "godot-core"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "glam 0.23.0",
- "godot-bindings",
- "godot-codegen",
- "godot-ffi",
-]
-
-[[package]]
-name = "godot-ffi"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "godot-bindings",
- "godot-codegen",
- "paste",
-]
-
-[[package]]
-name = "godot-fmt"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "proc-macro2",
-]
-
-[[package]]
-name = "godot-macros"
-version = "0.1.0"
-source = "git+https://github.com/godot-rust/gdext#c9c27937fdf8fb55484499f37f64f81b5dda4e04"
-dependencies = [
- "godot-bindings",
- "proc-macro2",
- "quote",
- "venial",
-]
-
-[[package]]
-name = "godot4-prebuilt"
-version = "0.0.0"
-source = "git+https://github.com/godot-rust/godot4-prebuilt?branch=4.1.1#fca6897dbfb1a2d9387f81491acd77f6f091b8c4"
 
 [[package]]
 name = "gpu-alloc"
@@ -2098,19 +2016,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
-
-[[package]]
 name = "hexasphere"
 version = "9.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cb3df16a7bcb1b5bc092abd55e14f77ca70aea14445026e264586fc62889a10"
 dependencies = [
  "constgebra",
- "glam 0.24.2",
+ "glam",
 ]
 
 [[package]]
@@ -2491,21 +2403,6 @@ dependencies = [
  "tracing",
  "unicode-ident",
 ]
-
-[[package]]
-name = "nanoserde"
-version = "0.1.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a983d0b19ed0fcd803c4f04f9b20d5e6dd17e06d44d98742a0985ac45dab1bc"
-dependencies = [
- "nanoserde-derive",
-]
-
-[[package]]
-name = "nanoserde-derive"
-version = "0.1.21"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4dc96541767a4279572fdcf9f95af9cc1c9b2a2254e7a079203c81e206a9059"
 
 [[package]]
 name = "ndk"
@@ -3412,8 +3309,7 @@ name = "tessa4d"
 version = "0.1.0"
 dependencies = [
  "bevy",
- "glam 0.24.2",
- "godot",
+ "glam",
  "proptest",
  "thiserror",
 ]
@@ -3424,14 +3320,6 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "image",
- "tessa4d",
-]
-
-[[package]]
-name = "tessa4d-gdext"
-version = "0.1.0"
-dependencies = [
- "godot",
  "tessa4d",
 ]
 
@@ -3672,16 +3560,6 @@ name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1bddf1187be692e79c5ffeab891132dfb0f236ed36a43c7ed39f1165ee20191"
-
-[[package]]
-name = "venial"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61584a325b16f97b5b25fcc852eb9550843a251057a5e3e5992d2376f3df4bb2"
-dependencies = [
- "proc-macro2",
- "quote",
-]
 
 [[package]]
 name = "version_check"

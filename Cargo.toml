@@ -1,8 +1,7 @@
 [workspace]
-members = ["tessa4d", "tessa4d-bevy", "tessa4d-gdext"]
+members = ["tessa4d", "tessa4d-bevy"]
 default-members = ["tessa4d"]
 resolver = "2"
 
 [workspace.dependencies]
 bevy = { version = "0.12" }
-godot = { git = "https://github.com/godot-rust/gdext" }

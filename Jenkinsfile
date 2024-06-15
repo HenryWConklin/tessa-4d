@@ -19,19 +19,6 @@ pipeline {
                         sh 'make check-tessa'
                     }
                 }
-                stage('Check tessa4d-gdext') {
-                    agent {
-                        docker {
-                            image 'gitea.okaymonkey.com/cicd/gdext-rs-build:4.1.3-latest'
-                            alwaysPull true
-                            reuseNode true
-                        }
-                    }
-                    steps {
-                        sh 'make check-gdext'
-                        sh 'make build-gdext'
-                    }
-                }
                 stage('Check tessa4d-bevy') {
                     agent {
                         docker {
@@ -48,20 +35,6 @@ pipeline {
         }
         stage('Integration Tests') {
             parallel {
-                stage('itest tessa4d-gdext') {
-                    agent {
-                        docker {
-                            image 'gitea.okaymonkey.com/cicd/godot-ci:4.1.3-latest'
-                            alwaysPull true
-                            reuseNode true
-                        }
-                    }
-                    steps {
-                        // Xvfb allows running X without an acutal display
-                        // so that we can take screenshots and test rendering in itests.
-                        sh 'xvfb-run -s "-screen 0 1280x1024x24" make itest-gdext'
-                    }
-                }
                 stage('itest tessa4d-bevy') {
                     agent {
                         docker {
@@ -79,7 +52,6 @@ pipeline {
     }
     post {
         always {
-            archiveArtifacts artifacts: 'itest/tessa4d-gdext/tests/screenshots/*.png', fingerprint: true
             archiveArtifacts artifacts: 'tessa4d-bevy/assets/screenshots/**/*.png', fingerprint: true
         }
     }
