@@ -18,6 +18,7 @@ check: check-tessa check-bevy
 check-tessa:
 	cargo clippy --package tessa4d
 	cargo fmt --check --package tessa4d
+	cargo test --package tessa4d
 
 check-bevy:
 	cargo clippy --package tessa4d-bevy
