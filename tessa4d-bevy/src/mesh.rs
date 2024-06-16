@@ -11,6 +11,7 @@ use bevy::{
     reflect::TypePath,
     render::{
         mesh::{Indices, Mesh},
+        render_asset::RenderAssetUsages,
         render_resource::PrimitiveTopology,
         view::VisibilityBundle,
     },
@@ -75,20 +76,23 @@ pub fn update_tetmesh4d_cross_sections(
 }
 
 pub fn to_bevy_mesh(mesh: tessa4d::mesh::TriangleMesh3D<Vec3>) -> Mesh {
-    Mesh::new(PrimitiveTopology::TriangleList)
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            mesh.vertices
-                .into_iter()
-                .map(|v| [v.position.x, v.position.y, v.position.z])
-                .collect::<Vec<_>>(),
-        )
-        .with_indices(Some(Indices::U32(
-            mesh.simplexes
-                .into_iter()
-                .flat_map(|triangle| triangle.map(|i| i as u32))
-                .collect(),
-        )))
+    Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD,
+    )
+    .with_inserted_attribute(
+        Mesh::ATTRIBUTE_POSITION,
+        mesh.vertices
+            .into_iter()
+            .map(|v| [v.position.x, v.position.y, v.position.z])
+            .collect::<Vec<_>>(),
+    )
+    .with_inserted_indices(Indices::U32(
+        mesh.simplexes
+            .into_iter()
+            .flat_map(|triangle| triangle.map(|i| i as u32))
+            .collect(),
+    ))
 }
 
 pub fn cross_section_tetmesh4d(tetmesh: TetrahedronMesh4D, transform: &Transform4D) -> Mesh {

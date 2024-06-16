@@ -11,7 +11,7 @@ tessa4d = { path = "../tessa4d", features = ["bevy"] }
 bevy = { workspace = true }
 
 [dev-dependencies]
-image = {version = "*"}
+image = {version = "0.24.9"}
 
 [[test]]
 name = "tesseract_render"

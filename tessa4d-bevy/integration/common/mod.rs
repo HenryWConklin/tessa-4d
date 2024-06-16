@@ -102,15 +102,21 @@ pub fn wait_ready(app: &mut App) {
     // Block on async loading of expected screenshots.
     if let Some(screenshot_info) = app.world.get_resource::<ScreenshotTestInfo>() {
         let screenshot_info = screenshot_info.clone();
+        bevy::log::info!("Waiting for expected screenshots");
         loop {
             let asset_server = app.world.get_resource::<AssetServer>().unwrap();
             if check_loaded(&asset_server, &screenshot_info.expected_screenshot_handles) {
                 break;
             }
             // Just sleeping never actually loads the images, need to let update run a few times.
-            bevy::log::info!("Waiting for expected screenshots");
             app.update();
         }
+        bevy::log::info!("Loaded expected screenshots");
+    }
+
+    // Without this loop, nothing renders in the test ~50% of the time. Stall for the window to set itself up or something.
+    for _ in 1..100 {
+        app.update();
     }
 }
 

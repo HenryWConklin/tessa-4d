@@ -2,7 +2,7 @@ mod common;
 
 use crate::common::{take_screenshot, wait_ready};
 
-use bevy::{ecs::system::RunSystemOnce, prelude::*};
+use bevy::{ecs::system::RunSystemOnce, prelude::*, window::WindowResolution};
 use common::{check_screenshots, setup_screenshots};
 use std::f32::consts::FRAC_PI_4;
 use tessa4d::transform::rotor4::{Bivec4, Rotor4};
@@ -28,7 +28,7 @@ fn setup(
 
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 5000.0,
             shadows_enabled: false,
             ..Default::default()
         },
@@ -39,7 +39,7 @@ fn setup(
 
     let tetmesh = TetrahedronMesh4D(tessa4d::mesh::TetrahedronMesh4D::tesseract_cube(1.0));
     let tetmesh_handle = tetmeshes.add(tetmesh.clone());
-    let material = Color::RED.into();
+    let material = Color::RED;
     let material_handle = materials.add(material);
     let mesh_handle = meshes.add(cross_section_tetmesh4d(tetmesh, &Transform4D::IDENTITY));
     commands.spawn((
@@ -55,10 +55,20 @@ fn setup(
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(DefaultPlugins)
-        .add_plugins(TessaMeshPlugin)
-        .add_plugins(Transform4DPlugin)
-        .add_systems(Startup, setup);
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            mode: bevy::window::WindowMode::Windowed,
+            present_mode: bevy::window::PresentMode::Immediate,
+            resolution: WindowResolution::new(300.0, 300.0),
+            resizable: false,
+            focused: true,
+            ..Default::default()
+        }),
+        ..Default::default()
+    }))
+    .add_plugins(TessaMeshPlugin)
+    .add_plugins(Transform4DPlugin)
+    .add_systems(Startup, setup);
     setup_screenshots(&mut app.world, "tesseract_render");
     wait_ready(&mut app);
 
