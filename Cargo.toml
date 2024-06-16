@@ -4,4 +4,5 @@ default-members = ["tessa4d"]
 resolver = "2"
 
 [workspace.dependencies]
-bevy = { version = "0.12" }
+bevy = { version = "0.13" }
+glam = { version = "0.25" }

@@ -7,7 +7,7 @@ resolver = "2"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-glam = { version = "^0.24.0", optional = true }
+glam = { workspace = true, optional = true }
 bevy = { workspace = true, optional = true }
 thiserror = "1.0.38"
 
