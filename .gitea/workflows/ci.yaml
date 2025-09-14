@@ -11,7 +11,7 @@ jobs:
     name: Lint, build, test
     runs-on: ubuntu-latest
     container: 
-      image: gitea.okaymonkey.com/cicd/bevy-build:latest
+      image: gitea.okaymonkey.com/cicd/bevy-itest:latest
       credentials:
         username: henrywconklin
         password: ${{ secrets.REGISTRY_TOKEN }}
@@ -29,31 +29,10 @@ jobs:
       - run: cargo test --package tessa4d
       - run: cargo test --package tessa4d-bevy --doc 
       - run: cargo test --package tessa4d-bevy --lib 
-      - name: "Build Tesseract Render itest"
-        id: build-tesseract-render
-        run: echo "TESSERACT_RENDER_PATH=$(cargo test --package tessa4d-bevy --no-run --test tesseract_render --message-format json | jq -r '.executable | select(. != null)')" >> "$GITHUB_OUTPUT"
+      - name: Tessa4D Bevy itest
+        run: xvfb-run -s "-screen 0 1280x1024x24" cargo test --package tessa4d-bevy --test tesseract_render 
       - uses: https://gitea.com/actions/gitea-upload-artifact@v4
         with:
-          name: tessa4d-bevy-itest
-          path: ${{steps.build-tesseract-render.outputs.TESSERACT_RENDER_PATH}} 
-  run_bevy_itest:
-    name: "Run bevy itest"
-    needs: cargo_stuff
-    runs-on: ubuntu-latest 
-    container: 
-      image: gitea.okaymonkey.com/cicd/bevy-itest:latest
-      credentials:
-        username: henrywconklin
-        password: ${{ secrets.REGISTRY_TOKEN }}
-    steps:
-      - uses: https://gitea.com/actions/download-artifact@v3
-        with:
-          name: tessa4d-bevy-itest
-      - run: unzip tessa4d-bevy-itest.zip && chmod +x tesseract_render-*
-      - run: ls
-      - run: xvfb-run -s "-screen 0 1280x1024x24" ./tesseract_render-*
-      - uses: https://gitea.com/actions/gitea-upload-artifact@v4
-        with:
-          name: tessa4-bevy-itest-screenshots
+          name: bevy-itest-screenshots
           path: tessa4d-bevy/assets/screenshots/**/*.png 
 
